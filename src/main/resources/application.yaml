@@ -233,8 +233,9 @@ hapi:
       - https://unitsofmeasure.org/*
       - http://loinc.org/*
       - https://loinc.org/*
-    #    partitioning:
-    #      allow_references_across_partitions: false
+    partitioning:
+       allow_references_across_partitions: true
+       request_tenant_partitioning_mode: false
     #      partitioning_include_in_search_hashes: false
     #      conditional_create_duplicate_identifiers_enabled: false
     #      request_tenant_partitioning_mode: true
