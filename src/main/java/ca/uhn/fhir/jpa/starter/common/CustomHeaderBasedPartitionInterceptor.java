@@ -5,7 +5,6 @@ import org.hl7.fhir.r4.model.Location;
 import org.hl7.fhir.r4.model.Organization;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Practitioner;
-import org.hl7.fhir.r4.model.PractitionerRole;
 
 import ca.uhn.fhir.interceptor.api.Hook;
 import ca.uhn.fhir.interceptor.api.Interceptor;
@@ -37,8 +36,6 @@ public class CustomHeaderBasedPartitionInterceptor {
 	        return RequestPartitionId.fromPartitionName("ORGANIZATION");
 	    } else if (theResource instanceof Practitioner) {
 	        return RequestPartitionId.fromPartitionName("PRACTITIONER");
-	    } else if (theResource instanceof PractitionerRole) {
-	        return RequestPartitionId.fromPartitionName("PRACTITIONER_ROLE");
 	    } else {
 	    	 return RequestPartitionId.fromPartitionName(partitionName.toUpperCase()); 
 	    }
