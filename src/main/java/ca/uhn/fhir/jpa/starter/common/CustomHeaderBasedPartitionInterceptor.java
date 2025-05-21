@@ -6,29 +6,26 @@ import org.hl7.fhir.r4.model.Organization;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Practitioner;
 
-import ca.uhn.fhir.interceptor.api.Hook;
-import ca.uhn.fhir.interceptor.api.Interceptor;
-import ca.uhn.fhir.interceptor.api.Pointcut;
 import ca.uhn.fhir.interceptor.model.RequestPartitionId;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 
-@Interceptor
+// @Interceptor
 public class CustomHeaderBasedPartitionInterceptor {
  
-	@Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_CREATE)
+	// @Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_CREATE)
 	public RequestPartitionId PartitionIdentifyCreate(IBaseResource theResource, RequestDetails theRequestDetails) {
 		return calculatePartition(theResource, theRequestDetails);
 	}
 	
-	@Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_READ)
+	// @Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_READ)
 	public RequestPartitionId PartitionIdentifyRead(IBaseResource theResource, RequestDetails theRequestDetails) {
 	    return calculatePartition(theResource, theRequestDetails);
 	}
 	
-	private RequestPartitionId calculatePartition(IBaseResource theResource, RequestDetails theRequestDetails) {
-	    String partitionName = theRequestDetails.getHeader("X-Tenant-ID");
+	private RequestPartitionId calculatePartition(IBaseResource theResource,
+			RequestDetails theRequestDetails) {
 
-	    if (theResource instanceof Patient) {
+		if (theResource instanceof Patient) {
 	        return RequestPartitionId.fromPartitionName("PATIENT");
 	    } else if (theResource instanceof Location) {
 	        return RequestPartitionId.fromPartitionName("LOCATION");
@@ -37,7 +34,7 @@ public class CustomHeaderBasedPartitionInterceptor {
 	    } else if (theResource instanceof Practitioner) {
 	        return RequestPartitionId.fromPartitionName("PRACTITIONER");
 	    } else {
-	    	 return RequestPartitionId.fromPartitionName(partitionName.toUpperCase()); 
+			return RequestPartitionId.fromPartitionName("DEFAULT");
 	    }
 	}
    
