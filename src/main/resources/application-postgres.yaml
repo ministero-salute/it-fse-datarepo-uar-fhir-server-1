@@ -1,17 +1,16 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/
+    url: jdbc:postgresql://localhost:5432/uar
     username: postgres
     password: example
-    driverClassName: org.postgresql.Driver
-    max-active: 15
-
-    # database connection pool size
+    driver-class-name: org.postgresql.Driver
     hikari:
       maximum-pool-size: 10
   jpa:
     properties:
-      hibernate.format_sql: false
-      hibernate.show_sql: false
-      hibernate.dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
-      hibernate.search.enabled: false
+      hibernate:
+        format_sql: true
+        show_sql: true
+        dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
+        search:
+          enabled: false
