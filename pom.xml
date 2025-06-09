@@ -7,6 +7,9 @@
         <java.version>17</java.version>
         <hapi.fhir.jpa.server.starter.revision>2</hapi.fhir.jpa.server.starter.revision>
         <clinical-reasoning.version>3.20.0</clinical-reasoning.version>
+        <config.infra>${project.basedir}/infrastructure</config.infra>
+        <container.output>target/container</container.output>
+        <container.output.runtime>${container.output}/runtime</container.output.runtime>
     </properties>
 
     <!-- one-liner to take you to the cloud with settings form the application.yaml file: -->
