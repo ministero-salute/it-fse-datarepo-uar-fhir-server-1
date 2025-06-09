@@ -431,7 +431,7 @@
         </pluginManagement>
 
         <!-- Tells Maven to name the generated WAR file as ROOT.war -->
-        <finalName>ROOT</finalName>
+        <finalName>${project.artifactId}</finalName>
 
         <plugins>
             <plugin>
