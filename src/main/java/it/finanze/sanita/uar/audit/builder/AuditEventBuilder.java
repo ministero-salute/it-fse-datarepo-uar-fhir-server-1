@@ -21,12 +21,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.hl7.fhir.r4.model.DocumentReference;
 
+import ca.uhn.fhir.rest.api.RequestTypeEnum;
 import it.finanze.sanita.uar.audit.enums.AuditEntityTypeEnum;
 import it.finanze.sanita.uar.audit.enums.AuditEventSubtypeEnum;
 import it.finanze.sanita.uar.audit.enums.AuditEventTypeEnum;
 import it.finanze.sanita.uar.audit.enums.AuditPurposeOfEventEnum;
 import it.finanze.sanita.uar.audit.enums.ClinicalDocumentPermission;
-import it.finanze.sanita.uar.audit.interceptor.UarAuditCaptureInterceptor;
 
 /**
  * Builder per la creazione di AuditEvent FHIR secondo le specifiche FSE 2.0
@@ -95,6 +95,32 @@ public class AuditEventBuilder {
         builder.auditEvent.setAction(AuditEvent.AuditEventAction.D);
         builder.withType(AuditEventTypeEnum.DATA_OBFUSCATION);
         return builder;
+    }
+
+    /**
+     * Crea builder appropriato basandosi sul tipo di richiesta HTTP.
+     * Factory method che determina automaticamente il tipo di operazione.
+     * 
+     * @param requestMethod Tipo di richiesta HTTP (GET, POST, PUT, DELETE)
+     * @return Builder configurato per il tipo di operazione, o null se requestMethod è null
+     */
+    public static AuditEventBuilder forRequestMethod(RequestTypeEnum requestMethod) {
+        if (requestMethod == null) {
+            return null;
+        }
+
+        switch (requestMethod) {
+            case POST:
+                return forDataCreation();
+            case PUT:
+                return forDataUpdate();
+            case DELETE:
+                return forDataDeletion();
+            case GET:
+                return forDataConsultation();
+            default:
+                return null;
+        }
     }
 
     // ============ CONFIGURATION METHODS ============

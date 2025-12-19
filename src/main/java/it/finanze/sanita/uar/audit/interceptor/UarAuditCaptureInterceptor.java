@@ -65,11 +65,6 @@ public class UarAuditCaptureInterceptor {
             return;
         }
 
-        // Skip if not a relevant operation type
-        if (!shouldCaptureRequest(requestDetails)) {
-            return;
-        }
-
         try {
             // Create audit context
             UarAuditContext context = new UarAuditContext();

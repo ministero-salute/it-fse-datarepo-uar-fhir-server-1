@@ -44,14 +44,14 @@ import org.springframework.stereotype.Component;
  */
 @Component
 @Interceptor
-public class UarAuditEmitInterceptor {
+public class UarAuditEmitTransactionInterceptor {
 
-    private static final Logger log = LoggerFactory.getLogger(UarAuditEmitInterceptor.class);
+    private static final Logger log = LoggerFactory.getLogger(UarAuditEmitTransactionInterceptor.class);
 
     private final AuditProperties auditProperties;
     private final AuditEventHelper auditEventHelper;
 
-    public UarAuditEmitInterceptor(
+    public UarAuditEmitTransactionInterceptor(
             @Autowired AuditProperties auditProperties,
             @Autowired AuditEventHelper auditEventHelper) {
         this.auditProperties = auditProperties;
@@ -67,8 +67,8 @@ public class UarAuditEmitInterceptor {
             RequestDetails requestDetails,
             Bundle theBundle) {
 
-        String requestorRole = "APR"; // PRENDI DA HEADER O UserData
-        String operationIDHeader = "SERV_WRITE_02";
+        String requestorRole = "APR"; // TODO: PRENDI DA HEADER/context
+        String operationIDHeader = "SERV_WRITE_02";// TODO: PRENDI DA HEADER/context
 
         // Skip if auditing is disabled
         if (!auditProperties.isEnabled()) {
@@ -102,7 +102,7 @@ public class UarAuditEmitInterceptor {
             String organizationId = auditEventHelper.extractOrganizationId(theBundle);
 
             // Build AuditEvent from the request bundle (using client IDs)
-            AuditEvent audit = determineBuilderType(context.getRequestMethod())
+            AuditEvent audit = AuditEventBuilder.forRequestMethod(context.getRequestMethod())
                     .withEntityType(AuditEntityTypeEnum.get(operationIDHeader))
                     .withAgentRolePatientAndRequestor(patientId, requesterId, requestorRole)
                     .withObserverOrganization(organizationId)
@@ -114,25 +114,6 @@ public class UarAuditEmitInterceptor {
 
         } catch (Exception e) {
             log.error("Error while adding AuditEvent to transactional bundle", e);
-        }
-    }
-
-    private AuditEventBuilder determineBuilderType(RequestTypeEnum requestMethod) {
-        if (requestMethod == null) {
-            return null;
-        }
-
-        switch (requestMethod) {
-            case POST:
-                return AuditEventBuilder.forDataCreation();
-            case PUT:
-                return AuditEventBuilder.forDataUpdate();
-            case DELETE:
-                return AuditEventBuilder.forDataDeletion();
-            case GET:
-                return AuditEventBuilder.forDataConsultation();
-            default:
-                return null;
         }
     }
 
@@ -158,4 +139,5 @@ public class UarAuditEmitInterceptor {
         bundle.addEntry(auditEntry);
         log.debug("Added AuditEvent to Bundle as entry #{} with method POST", bundle.getEntry().size());
     }
+
 }
