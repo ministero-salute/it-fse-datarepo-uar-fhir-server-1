@@ -108,7 +108,7 @@ import static ca.uhn.fhir.jpa.starter.common.validation.IRepositoryValidationInt
 
 @Configuration
 // allow users to configure custom packages to scan for additional beans
-@ComponentScan(basePackages = {"${hapi.fhir.custom-bean-packages:}"})
+@ComponentScan(basePackages = {"${hapi.fhir.custom-bean-packages:}", "it.finanze.sanita.uar.audit"})
 @Import(ThreadPoolFactoryConfig.class)
 public class StarterJpaConfig {
 

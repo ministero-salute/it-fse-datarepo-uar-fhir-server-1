@@ -100,12 +100,6 @@ spring:
     max-active: 15
 
     # database connection pool size
-    # url: "jdbc:h2:file:./target/database/h2"
-    url: jdbc:h2:mem:test_mem
-    username: sa
-    password: null
-    driver-class-name: org.h2.Driver
-    # max-active: 15     # (ignored with HikariCP; use hikari.maximum-pool-size)
     hikari:
       maximum-pool-size: 10
 
@@ -119,26 +113,16 @@ spring:
         # If using Postgres: ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
         dialect: ca.uhn.fhir.jpa.model.dialect.HapiFhirH2Dialect
 
-      #Hibernate dialect is automatically detected except Postgres and H2.
-      #If using H2, then supply the value of ca.uhn.fhir.jpa.model.dialect.HapiFhirH2Dialect
-      #If using postgres, then supply the value of ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
-      hibernate.dialect: org.hibernate.dialect.OracleDialect
-  #      hibernate.hbm2ddl.auto: update
-  #      hibernate.jdbc.batch_size: 20
-  #      hibernate.cache.use_query_cache: false
-  #      hibernate.cache.use_second_level_cache: false
-  #      hibernate.cache.use_structured_entries: false
-  #      hibernate.cache.use_minimal_puts: false
         # --- Optional Hibernate DDL & tuning (commented out from source) ---
-        hbm2ddl:
-          auto: update
-        jdbc:
-          batch_size: 20
-        cache:
-          use_query_cache: false
-          use_second_level_cache: false
-          use_structured_entries: false
-          use_minimal_puts: false
+      #  hbm2ddl:
+      #    auto: update
+      #  jdbc:
+      #    batch_size: 20
+      #  cache:
+      #    use_query_cache: false
+      #    use_second_level_cache: false
+      #    use_structured_entries: false
+      #    use_minimal_puts: false
 
         # --- Hibernate Search (Lucene/Elasticsearch) ---
         search:
@@ -255,73 +239,6 @@ hapi:
       enabled: false
       clientIdHeaderName: client_id
 
-    ### This enables the swagger-ui at /fhir/swagger-ui/index.html as well as the /fhir/api-docs (see https://hapifhir.io/hapi-fhir/docs/server_plain/openapi.html)
-    openapi_enabled: true
-    ### This is the FHIR version. Choose between, DSTU2, DSTU3, R4 or R5
-    fhir_version: R4
-    ### Flag is false by default. This flag enables runtime installation of IG's.
-    ig_runtime_upload_enabled: false
-    ### This flag when enabled to true, will avail evaluate measure operations from CR Module.
-
-    ### enable to use the ApacheProxyAddressStrategy which uses X-Forwarded-* headers
-    ### to determine the FHIR server address
-    #   use_apache_address_strategy: false
-    ### forces the use of the https:// protocol for the returned server address.
-    ### alternatively, it may be set using the X-Forwarded-Proto header.
-    #   use_apache_address_strategy_https: false
-    ### enables the server to overwrite defaults on HTML, css, etc. under the url pattern of eg. /content/custom **
-    ### Folder with custom content MUST be named custom. If omitted then default content applies
-    #custom_content_path: ./custom
-    ### enables the server host custom content. If e.g. the value ./configs/app is supplied then the content
-    ### will be served under /web/app
-    #app_content_path: ./configs/app
-    ### enable to set the Server URL
-    #    server_address: http://hapi.fhir.org/baseR4
-    #    defer_indexing_for_codesystems_of_size: 101
-    ### Flag is true by default. This flag filters resources during package installation, allowing only those resources with a valid status (e.g. active) to be installed.
-    #    validate_resource_status_for_package_upload: false 
-    #    install_transitive_ig_dependencies: true
-    #implementationguides:
-    ###    example from registry (packages.fhir.org)
-    #  swiss:
-    #    name: swiss.mednet.fhir
-    #    version: 0.8.0
-    #    reloadExisting: false
-    #    installMode: STORE_AND_INSTALL
-    #      example not from registry
-    #      ips_1_0_0:
-    #        packageUrl: https://build.fhir.org/ig/HL7/fhir-ips/package.tgz
-    #        name: hl7.fhir.uv.ips
-    #        version: 1.0.0
-    #    supported_resource_types:
-    #      - Patient
-    #      - Observation
-    ##################################################
-    # Allowed Bundle Types for persistence (defaults are: COLLECTION,DOCUMENT,MESSAGE)
-    ##################################################
-    #    allowed_bundle_types: COLLECTION,DOCUMENT,MESSAGE,TRANSACTION,TRANSACTIONRESPONSE,BATCH,BATCHRESPONSE,HISTORY,SEARCHSET
-    #    allow_cascading_deletes: true
-    #    allow_contains_searches: true
-    allow_external_references: true
-    #    allow_multiple_delete: true
-    #    allow_override_default_search_params: true
-    #    auto_create_placeholder_reference_targets: false
-    #    mass_ingestion_mode_enabled: false
-    ### tells the server to automatically append the current version of the target resource to references at these paths
-    #    auto_version_reference_at_paths: Device.patient, Device.location, Device.parent, DeviceMetric.parent, DeviceMetric.source, Observation.device, Observation.subject
-    #    ips_enabled: false
-    #    default_encoding: JSON
-    #    default_pretty_print: true
-    #    default_page_size: 20
-    #    delete_expunge_enabled: true
-    #    enable_repository_validating_interceptor: true
-    #    enable_index_missing_fields: false
-    #    enable_index_of_type: true
-    #    enable_index_contained_resource: false
-    #    upliftedRefchains_enabled: true
-    #    resource_dbhistory_enabled: false
-    ###  !!Extended Lucene/Elasticsearch Indexing is still a experimental feature, expect some features (e.g. _total=accurate) to not work as expected!!
-    ###  more information here: https://hapifhir.io/hapi-fhir/docs/server_jpa/elastic.html
     # -------------------------------------------------------------------------------
     # D. Search & Indexing
     # -------------------------------------------------------------------------------
@@ -348,12 +265,12 @@ hapi:
     # -------------------------------------------------------------------------------
     # allow_cascading_deletes: true
     # allow_contains_searches: true
-    # allow_external_references: true
+    allow_external_references: true
     # allow_multiple_delete: true
     # allow_override_default_search_params: true
     # auto_create_placeholder_reference_targets: false
     # mass_ingestion_mode_enabled: false
-    # auto_version_reference_at_paths: Device.patient, Device.location, Device.parent, DeviceMetric.parent, DeviceMetric.source, Observation.device, Observation.subject
+    auto_version_reference_at_paths: AuditEvent.entity.what,AuditEvent.entity.what.reference,AuditEvent.agent.who.reference
     # client_id_strategy: ALPHANUMERIC
     # server_id_strategy: SEQUENTIAL_NUMERIC
     # enforce_referential_integrity_on_delete: false
@@ -402,12 +319,6 @@ hapi:
       - https://unitsofmeasure.org/*
       - http://loinc.org/*
       - https://loinc.org/*
-    #    partitioning:
-       #    allow_references_across_partitions: true
-       #    request_tenant_partitioning_mode: false
-    #      partitioning_include_in_search_hashes: false
-    #      conditional_create_duplicate_identifiers_enabled: false
-    #      request_tenant_partitioning_mode: true
 
     # -------------------------------------------------------------------------------
     # J. Partitioning & Multitenancy
@@ -454,11 +365,7 @@ hapi:
     # comma-separated list of fully qualified interceptor classes. 
     # classes listed here will be fetched from the Spring context when combined with 'custom-bean-packages', 
     # or will be instantiated via reflection using an no-arg contructor; then registered with the server  
-    #custom-interceptor-classes:  
-  custom-interceptor-classes: ca.uhn.fhir.jpa.starter.common.CustomHeaderBasedPartitionInterceptor  
-
-    # custom-bean-packages:
-    # custom-interceptor-classes:
+    custom-interceptor-classes: ca.uhn.fhir.jpa.starter.common.CustomHeaderBasedPartitionInterceptor,it.finanze.sanita.uar.audit.interceptor.UarAuditCaptureInterceptor,it.finanze.sanita.uar.audit.interceptor.UarAuditEmitInterceptor
     # custom-provider-classes:
     
     # store_meta_source_information: NONE
@@ -532,3 +439,61 @@ hapi:
     # R. LastN (analytics)
     # -------------------------------------------------------------------------------
     # lastn_enabled: true
+
+# -------------------------------------------------------------------------------------
+# UAR Audit Configuration
+# -------------------------------------------------------------------------------------
+uar:
+  audit:
+    # Master switch to enable/disable AuditEvent generation
+    enabled: true
+    
+    # Control which operations generate AuditEvents
+    generate-for-create: true
+    generate-for-update: true
+    generate-for-delete: true
+    generate-for-read: false  # Currently not implemented for search operations
+    
+    # Strategy for entity.what references
+    # false (recommended): use identifier strategy to avoid RI blocking on hard deletes
+    # true: use reference strategy (may block hard deletes)
+    use-what-reference: false
+    
+    # Include query string in entity.query for search operations (Base64 encoded)
+    include-query-for-search: true
+    
+    # Maximum number of entities per AuditEvent (guard against huge transactions)
+    max-entities-per-audit: 2000
+    
+    # HTTP header configuration
+    headers:
+      # Header name containing the subject role (e.g., APR, ASS, TUT)
+      role-header-name: "X-Subject-Role"
+      # Optional: header for subject ID fallback
+      subject-id-header-name: "X-Subject-Id"
+    
+    # Service consulted (entity.type) configuration
+    service:
+      code-system: "http://fse.salute.gov.it/CodeSystem/servizio-consultato"
+      default-code: "SERV_ASS_01"
+      default-display: "Dati di sintesi"
+    
+    # Observer organization configuration
+    organization:
+      reference: "Organization/min-salute"
+      display: "Ministero della Salute"
+    
+    # ID Resolution configuration
+    resolve:
+      # Enable async resolution of client IDs to server-assigned IDs
+      enabled: true
+      # FHIR base URL for the client to connect to (usually the local server)
+      fhir-base-url: "http://localhost:8080/fhir"
+      # Queue configuration
+      queue:
+        # Number of items to process in each batch
+        batch-size: 10
+        # Polling interval in milliseconds (how often to check the queue)
+        poll-interval: 5000
+        # Maximum number of retries for failed items
+        max-retries: 3

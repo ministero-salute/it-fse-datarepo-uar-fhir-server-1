@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.EnableTransactionManagement;
 import org.springframework.util.Assert;
 
 import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.apache.commons.lang3.ObjectUtils.defaultIfNull;
@@ -184,6 +185,10 @@ public class FhirServerConfigCommon {
 				appProperties.getEnforce_referential_integrity_on_write());
 		jpaStorageSettings.setEnforceReferentialIntegrityOnDelete(
 				appProperties.getEnforce_referential_integrity_on_delete());
+		// Set<String> disabledPaths = new HashSet<>();
+		// disabledPaths.add("AuditEvent.entity.what");
+		// jpaStorageSettings.setEnforceReferentialIntegrityOnDeleteDisableForPaths(disabledPaths);
+
 		jpaStorageSettings.setAllowContainsSearches(appProperties.getAllow_contains_searches());
 		jpaStorageSettings.setAllowMultipleDelete(appProperties.getAllow_multiple_delete());
 		jpaStorageSettings.setAllowExternalReferences(appProperties.getAllow_external_references());
@@ -295,7 +300,6 @@ public class FhirServerConfigCommon {
 					"Server configured to use {} threads for expunge operations",
 					appProperties.getExpunge_thread_count());
 		}
-
 		return jpaStorageSettings;
 	}
 
