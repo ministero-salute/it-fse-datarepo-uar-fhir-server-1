@@ -182,7 +182,7 @@ hapi:
     #    auto_create_placeholder_reference_targets: false
     #    mass_ingestion_mode_enabled: false
     ### tells the server to automatically append the current version of the target resource to references at these paths
-    #    auto_version_reference_at_paths: Device.patient, Device.location, Device.parent, DeviceMetric.parent, DeviceMetric.source, Observation.device, Observation.subject
+    auto_version_reference_at_paths: AuditEvent.entity.what,AuditEvent.entity.what.reference,AuditEvent.agent.who.reference,AuditEvent.agent.who,AuditEvent.agent
     #    ips_enabled: false
     #    default_encoding: JSON
     #    default_pretty_print: true
