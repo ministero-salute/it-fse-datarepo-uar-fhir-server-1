@@ -270,7 +270,7 @@ hapi:
     # allow_override_default_search_params: true
     # auto_create_placeholder_reference_targets: false
     # mass_ingestion_mode_enabled: false
-    auto_version_reference_at_paths: AuditEvent.entity.what,AuditEvent.entity.what.reference,AuditEvent.agent.who.reference
+    auto_version_reference_at_paths: AuditEvent.entity.what,AuditEvent.entity.what.reference,AuditEvent.agent.who.reference,AuditEvent.agent.who
     # client_id_strategy: ALPHANUMERIC
     # server_id_strategy: SEQUENTIAL_NUMERIC
     # enforce_referential_integrity_on_delete: false
@@ -365,7 +365,7 @@ hapi:
     # comma-separated list of fully qualified interceptor classes. 
     # classes listed here will be fetched from the Spring context when combined with 'custom-bean-packages', 
     # or will be instantiated via reflection using an no-arg contructor; then registered with the server  
-    custom-interceptor-classes: ca.uhn.fhir.jpa.starter.common.CustomHeaderBasedPartitionInterceptor,it.finanze.sanita.uar.audit.interceptor.UarAuditCaptureInterceptor,it.finanze.sanita.uar.audit.interceptor.UarAuditEmitTransactionInterceptor,it.finanze.sanita.uar.audit.interceptor.UarAuditEmitReadInterceptor
+    custom-interceptor-classes: ca.uhn.fhir.jpa.starter.common.CustomHeaderBasedPartitionInterceptor
     # custom-provider-classes:
     
     # store_meta_source_information: NONE
