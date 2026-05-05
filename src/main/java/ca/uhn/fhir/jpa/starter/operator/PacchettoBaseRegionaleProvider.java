@@ -16,14 +16,26 @@ import ca.uhn.fhir.rest.api.server.RequestDetails;
 @Component
 public class PacchettoBaseRegionaleProvider {
 
-    @Autowired
+	@Autowired
     private EngineComponent engineComponent;
 
-     
-    @Operation(name = "$cerca-pacchetto-base", idempotent = true, returnParameters = {@OperationParam(name = "return", type = Bundle.class)})
-    public Bundle cercaPacchetto(@OperationParam(name = "publisher") StringType publisher, RequestDetails requestDetails) {
-    	String system = "";
-    	return engineComponent.getBundle("BASE", system,"");
+    @Operation(
+        name = "$cerca-pacchetto-base",
+        idempotent = true,
+        returnParameters = {@OperationParam(name = "return", type = Bundle.class)}
+    )
+    public Bundle cercaPacchetto(
+            @OperationParam(name = "publisher")         StringType publisher,
+            @OperationParam(name = "codiceFiscale")     StringType codiceFiscale,
+            @OperationParam(name = "patientSystem")     StringType patientSystem,
+            RequestDetails requestDetails) {
+
+        String publisherStr    = publisher     != null ? publisher.getValue()     : null;
+        String cfStr           = codiceFiscale != null ? codiceFiscale.getValue() : null;
+        String patientSystemStr= patientSystem != null ? patientSystem.getValue() : "http://hl7.it/sid/cf"; // default CF italiano
+
+        return engineComponent.getBundle("BASE", publisherStr, cfStr, patientSystemStr);
     }
  
+    
 }
