@@ -46,57 +46,6 @@ public class EngineComponent implements IResourceProvider {
         return OperationDefinition.class;
     }
 
-//    /**
-//     * Entry point principale.
-//     *
-//     * @param nomeOperationCustom  nome della OperationDefinition (es. "GRAVIDANZA")
-//     * @param codiceFiscale        CF del medico/publisher (usato sia per trovare la OpDef
-//     *                             sia come identifier del Patient)
-//     * @param patientIdentifierSystem  system dell'identifier del Patient (es. "http://hl7.it/sid/cf")
-//     */
-//    public Bundle getBundle(String nomeOperationCustom, String codiceFiscale, String patientIdentifierSystem) {
-//
-//        // 1. Recupero OperationDefinition tramite nome + publisher (= CF)
-//        OperationDefinition opDef = cercaOperationDefinition(nomeOperationCustom, codiceFiscale);
-//
-//        // 2. Estrazione ValueSet dalla OpDef
-//        List<String> valuesetResourceTypes = estraiValueFromValueSetContained(opDef, "#vs-resources");
-//        List<Coding>  valuesetObservationCodes = estraiCodingsFromValueSetContained(opDef, "#vs-observations");
-//
-//        log.info("Tipi di risorsa da recuperare: {}", valuesetResourceTypes);
-//        log.info("Codici Observation da cercare: {}", valuesetObservationCodes.size());
-//
-//        // 3. Risolvo il Patient HAPI tramite identifier (system|CF)
-//        String patientId = findPatientIdByIdentifier(patientIdentifierSystem, codiceFiscale);
-//        log.info("Patient HAPI ID risolto: {}", patientId);
-//
-//        List<Resource> allResources = new ArrayList<>();
-//
-//        // 4. Iterazione sui resourceType definiti nel ValueSet
-//        for (String resourceType : valuesetResourceTypes) {
-//
-//            if ("Observation".equalsIgnoreCase(resourceType)) {
-//                // Recupero TUTTE le Observation filtrate per codici LOINC + patient
-//                List<Resource> observations = fetchObservationsByCodesAndPatient(patientId, valuesetObservationCodes);
-//                log.info("Trovate {} Observation per patientId={}", observations.size(), patientId);
-//                allResources.addAll(observations);
-//
-//            } else {
-//                // Recupero SOLO l'ultima risorsa di quel tipo associata al patient
-//                Resource lastResource = fetchLastResourceByPatient(resourceType, patientId);
-//                if (lastResource != null) {
-//                    log.info("Recuperata ultima risorsa tipo={} per patientId={}", resourceType, patientId);
-//                    allResources.add(lastResource);
-//                } else {
-//                    log.info("Nessuna risorsa trovata tipo={} per patientId={}", resourceType, patientId);
-//                }
-//            }
-//        }
-//
-//        // 5. Costruzione Bundle finale
-//        return buildBundle(allResources);
-//    }
-    
     /**
      * Entry point principale.
      *
@@ -105,7 +54,7 @@ public class EngineComponent implements IResourceProvider {
      *                             sia come identifier del Patient)
      * @param patientIdentifierSystem  system dell'identifier del Patient (es. "http://hl7.it/sid/cf")
      */
-    public Bundle getBundle(String codiceFiscale, String patientIdentifierSystem) {
+    public Bundle getBundle(String nomeOperationCustom, String codiceFiscale, String patientIdentifierSystem) {
 
         // 1. Recupero OperationDefinition tramite nome + publisher (= CF)
         OperationDefinition opDef = cercaOperationDefinition(nomeOperationCustom, codiceFiscale);
@@ -147,6 +96,7 @@ public class EngineComponent implements IResourceProvider {
         // 5. Costruzione Bundle finale
         return buildBundle(allResources);
     }
+     
 
     // =========================================================================
     // Risoluzione Patient: identifier (system|value) → HAPI logical ID
