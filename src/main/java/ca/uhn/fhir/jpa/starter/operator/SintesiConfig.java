@@ -27,14 +27,10 @@ public class SintesiConfig {
     private RestfulServer restfulServer; // bean già creato da HAPI starter
 
     @Autowired
-    private PacchettoBaseRegionaleProvider pacchettoBaseProvider;
-
-    @Autowired
-    private GravidanzaProvider gravidanzaProvider;
+    private PacchettoProvider pacchettoProvider;
 
     @PostConstruct
     public void registerProviders() {
-        restfulServer.registerProvider(pacchettoBaseProvider);
-        restfulServer.registerProvider(gravidanzaProvider);
+        restfulServer.registerProvider(pacchettoProvider);
     }
 }
