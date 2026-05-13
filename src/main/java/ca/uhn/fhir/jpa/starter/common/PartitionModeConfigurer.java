@@ -34,6 +34,9 @@ public class PartitionModeConfigurer {
 
 	@Autowired
 	private PartitionManagementProvider myPartitionManagementProvider;
+	
+	@Autowired
+	private CustomHeaderBasedPartitionInterceptor partitionInteceptorCustom;
 
 	@PostConstruct
 	public void start() {
@@ -52,5 +55,6 @@ public class PartitionModeConfigurer {
 
 			myRestfulServer.registerProviders(myPartitionManagementProvider);
 		}
+		myRestfulServer.registerInterceptor(partitionInteceptorCustom);
 	}
 }
