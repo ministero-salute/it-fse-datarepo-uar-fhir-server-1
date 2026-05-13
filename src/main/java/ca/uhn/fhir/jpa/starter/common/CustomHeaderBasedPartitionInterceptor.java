@@ -212,26 +212,64 @@ public class CustomHeaderBasedPartitionInterceptor {
     // NON passiamo la partitionDate: PostgreSQL farà il pruning fisico
     // automaticamente sulla WHERE generata da HAPI sui search parameters.
     // -------------------------------------------------------------------------
+//    @Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_READ)
+//    public RequestPartitionId identifyPartitionForRead(
+//            RequestDetails requestDetails) {
+//
+//        String resourceName = requestDetails.getResourceName();
+//
+//        // resourceName può essere null in alcune operazioni di sistema
+//        if (resourceName == null) {
+//            return RequestPartitionId.allPartitions();
+//        }
+//
+//        int partitionId = resolvePartitionId(resourceName);
+//
+//        // Se la risorsa non è mappata (es. operazioni custom) cerca ovunque
+//        if (partitionId == 0) {
+//            return RequestPartitionId.allPartitions();
+//        }
+//
+//        return RequestPartitionId.fromPartitionId(partitionId);
+//    }
+    
     @Hook(Pointcut.STORAGE_PARTITION_IDENTIFY_READ)
-    public RequestPartitionId identifyPartitionForRead(
-            RequestDetails requestDetails) {
+	public RequestPartitionId identifyReadPartition(
+	        RequestDetails requestDetails) {
 
-        String resourceName = requestDetails.getResourceName();
+	    int partitionId = computeUniqueIdAsString(requestDetails.getResourceName());
 
-        // resourceName può essere null in alcune operazioni di sistema
-        if (resourceName == null) {
-            return RequestPartitionId.allPartitions();
-        }
+	    Map<String, String[]> parameters = requestDetails.getParameters();
+	    String[] dateParams = parameters.get("date");
 
-        int partitionId = resolvePartitionId(resourceName);
+	    LocalDate geDate = null;
+	    LocalDate leDate = null;
 
-        // Se la risorsa non è mappata (es. operazioni custom) cerca ovunque
-        if (partitionId == 0) {
-            return RequestPartitionId.allPartitions();
-        }
+	    if (dateParams != null) {
+	        for (String param : dateParams) {
+	            if (param.startsWith("ge") && param.length() >= 12)
+	                geDate = LocalDate.parse(param.substring(2, 12));
+	            else if (param.startsWith("le") && param.length() >= 12)
+	                leDate = LocalDate.parse(param.substring(2, 12));
+	        }
+	    }
 
-        return RequestPartitionId.fromPartitionId(partitionId);
-    }
+	    if (geDate != null && leDate != null) {
+	        return RequestPartitionId.fromPartitionId(partitionId, geDate);
+	    }
+
+	    return RequestPartitionId.fromPartitionId(partitionId);
+	}
+    
+    private int computeUniqueIdAsString(String resource) {
+		Integer partitionId = RESOURCE_TYPE_PARTITION_MAP.get(resource);
+
+		if (partitionId == null) {
+			return 0;
+		}
+
+		return partitionId;
+	}
 
     // -------------------------------------------------------------------------
     // Estrae la data clinica più significativa per tipo di risorsa.
