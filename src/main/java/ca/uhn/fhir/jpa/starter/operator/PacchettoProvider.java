@@ -15,26 +15,26 @@ public class PacchettoProvider {
     @Autowired
     private EngineComponent engineComponent;
 
-    @Operation(
-        name = "$esegui-pacchetto",
-        idempotent = true,
-        returnParameters = {@OperationParam(name = "return", type = Bundle.class)}
-    )
+    @Operation(name = "$esegui-pacchetto", idempotent = true, returnParameters = {
+            @OperationParam(name = "return", type = Bundle.class) })
     public Bundle searchPacchetto(
-            @OperationParam(name = "nomePacchetto")     StringType nomePacchetto,
-            @OperationParam(name = "publisher")         StringType publisher,
-            @OperationParam(name = "codiceFiscale")     StringType codiceFiscale,
-            @OperationParam(name = "patientSystem")     StringType patientSystem,
+            @OperationParam(name = "code") StringType code,
+            @OperationParam(name = "publisher") StringType publisher,
+            @OperationParam(name = "codiceFiscale") StringType codiceFiscale,
+            @OperationParam(name = "patientSystem") StringType patientSystem,
             RequestDetails requestDetails) {
 
-        String publisherStr    = publisher     != null ? publisher.getValue()     : null;
-        String cfStr           = codiceFiscale != null ? codiceFiscale.getValue() : null;
-        String patientSystemStr= patientSystem != null ? patientSystem.getValue() : "urn:oid:2.16.840.1.113883.2.9.4.3.17";
-        String nomePacchettoStr= nomePacchetto != null ? nomePacchetto.getValue() : null;
+        if (code == null || publisher == null) {
+            // TODO: alzare un eccezione.
+        }
 
-        //TODO: aggiungere controllo se uno dei campi è nullo cosa fare
+        String publisherStr = publisher != null ? publisher.getValue() : null;
+        String cfStr = codiceFiscale != null ? codiceFiscale.getValue() : null;
+        String patientSystemStr = patientSystem != null ? patientSystem.getValue()
+                : "urn:oid:2.16.840.1.113883.2.9.4.3.17";
+        String codeStr = code != null ? code.getValue() : null;
 
-        return engineComponent.getBundle(nomePacchettoStr, publisherStr, cfStr, patientSystemStr);
+        return engineComponent.getBundle(codeStr, publisherStr, cfStr, patientSystemStr);
     }
 
 }

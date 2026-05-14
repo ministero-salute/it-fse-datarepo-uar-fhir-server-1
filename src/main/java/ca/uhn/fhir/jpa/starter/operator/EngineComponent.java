@@ -46,24 +46,10 @@ public class EngineComponent implements IResourceProvider {
         return OperationDefinition.class;
     }
 
-    /**
-     * Entry point principale.
-     *
-     * @param nomeOperationCustom  nome della OperationDefinition (es. "GRAVIDANZA")
-     * @param codiceFiscale        CF del medico/publisher (usato sia per trovare la OpDef
-     *                             sia come identifier del Patient)
-     * @param patientIdentifierSystem  system dell'identifier del Patient (es. "http://hl7.it/sid/cf")
-     */
-    /**
-     * @param nomeOperationCustom   nome della OperationDefinition (es. "BASE", "GRAVIDANZA")
-     * @param publisher             codice regione (es. "120") — usato SOLO per trovare la OpDef
-     * @param codiceFiscale         CF dell'assistito — usato per risolvere il Patient e fetchare le risorse
-     * @param patientIdentifierSystem  system FHIR del CF (es. "http://hl7.it/sid/cf")
-     */
     public Bundle getBundle(String nomeOperationCustom, String publisher, String codiceFiscale, String patientIdentifierSystem) {
 
         // 1. Trova OpDef tramite nome + publisher (codice regione)
-        OperationDefinition opDef = cercaOperationDefinition(nomeOperationCustom, publisher);
+        OperationDefinition opDef = searchOperationDefinition(nomeOperationCustom, publisher);
 
         // 2. Estrai ValueSet dalla OpDef
         List<String> valuesetResourceTypes     = estraiValueFromValueSetContained(opDef, "#vs-resources");
@@ -256,12 +242,12 @@ public class EngineComponent implements IResourceProvider {
     // Ricerca OperationDefinition
     // =========================================================================
 
-    private OperationDefinition cercaOperationDefinition(String nome, String publisher) {
+    private OperationDefinition searchOperationDefinition(String name, String publisher) {
         IFhirResourceDao<OperationDefinition> opDefDao =
                 daoRegistry.getResourceDao(OperationDefinition.class);
 
         SearchParameterMap map = new SearchParameterMap();
-        map.add(OperationDefinition.SP_NAME, new StringParam(nome).setExact(true));
+        map.add(OperationDefinition.SP_CODE, new StringParam(name).setExact(true));
 
         if (publisher != null && !publisher.isEmpty()) {
             map.add(OperationDefinition.SP_PUBLISHER, new StringParam(publisher));
@@ -274,7 +260,7 @@ public class EngineComponent implements IResourceProvider {
 
         if (result.isEmpty()) {
             throw new ResourceNotFoundException(
-                "Nessuna OperationDefinition trovata con nome: " + nome +
+                "Nessuna OperationDefinition trovata con nome: " + name +
                 (publisher != null ? " e publisher: " + publisher : ""));
         }
 
