@@ -247,8 +247,9 @@ public class EngineComponent implements IResourceProvider {
                 daoRegistry.getResourceDao(OperationDefinition.class);
 
         SearchParameterMap map = new SearchParameterMap();
-        map.add(OperationDefinition.SP_CODE, new StringParam(name).setExact(true));
+        map.add(OperationDefinition.SP_CODE, new TokenParam(name));
 
+        
         if (publisher != null && !publisher.isEmpty()) {
             map.add(OperationDefinition.SP_PUBLISHER, new StringParam(publisher));
         }
