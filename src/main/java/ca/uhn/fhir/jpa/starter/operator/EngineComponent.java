@@ -3,6 +3,7 @@ package ca.uhn.fhir.jpa.starter.operator;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -10,7 +11,6 @@ import java.util.stream.Stream;
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.Coding;
-import org.hl7.fhir.r4.model.Observation;
 import org.hl7.fhir.r4.model.OperationDefinition;
 import org.hl7.fhir.r4.model.Patient;
 import org.hl7.fhir.r4.model.Resource;
@@ -38,6 +38,21 @@ public class EngineComponent implements IResourceProvider {
 
     private static final Logger log = LoggerFactory.getLogger(EngineComponent.class);
 
+    /** ID del ValueSet contained che elenca i resourceType da recuperare. */
+    private static final String RESOURCE_TYPES_VALUESET_ID = "vs-resource-types";
+
+    /**
+     * Suffisso convenzionale dei ValueSet con i codici di filtro per resourceType
+     * (es. "Observation-code").
+     */
+    private static final String CODE_VALUESET_SUFFIX = "-code";
+
+    /**
+     * Mapping resourceType → search parameter usato per filtrare sui codici.
+     */
+    private static final Map<String, String> CODE_SEARCH_PARAM_BY_TYPE = Map.of(
+            "Encounter", "type");
+
     @Autowired
     private DaoRegistry daoRegistry;
 
@@ -46,51 +61,62 @@ public class EngineComponent implements IResourceProvider {
         return OperationDefinition.class;
     }
 
-    public Bundle getBundle(String nomeOperationCustom, String publisher, String codiceFiscale, String patientIdentifierSystem) {
+    public Bundle getBundle(String nomeOperationCustom,
+            String publisher,
+            String codiceFiscale,
+            String patientIdentifierSystem) {
 
-        // 1. Trova OpDef tramite nome + publisher (codice regione)
+        // 1. Trova l'OperationDefinition per name + publisher
         OperationDefinition opDef = searchOperationDefinition(nomeOperationCustom, publisher);
 
-        // 2. Estrai ValueSet dalla OpDef
-        List<String> valuesetResourceTypes     = estraiValueFromValueSetContained(opDef, "#vs-resources");
-        List<Coding> valuesetObservationCodes  = estraiCodingsFromValueSetContained(opDef, "#vs-observations");
+        // 2. Estrai la lista di resourceType dal ValueSet contained "vs-resource-types"
+        List<String> resourceTypes = estraiCodesFromValueSetContained(opDef, RESOURCE_TYPES_VALUESET_ID);
+        log.info("ResourceType richiesti dall'OperationDefinition: {}", resourceTypes);
 
-        log.info("Tipi risorsa: {} | Codici Observation: {}", valuesetResourceTypes, valuesetObservationCodes.size());
+        if (resourceTypes.isEmpty()) {
+            throw new ResourceNotFoundException(
+                    "L'OperationDefinition non contiene un ValueSet '" + RESOURCE_TYPES_VALUESET_ID + "' valorizzato.");
+        }
 
-        // 3. Risolvi il Patient tramite CF dell'assistito (NON il publisher/regione)
+        // 3. Risolvi il Patient tramite identifier (CF dell'assistito)
         String patientId = findPatientIdByIdentifier(patientIdentifierSystem, codiceFiscale);
         log.info("Patient HAPI ID: {}", patientId);
 
         List<Resource> allResources = new ArrayList<>();
 
-        // 4. Fetch risorse
-        for (String resourceType : valuesetResourceTypes) {
-            if ("Observation".equalsIgnoreCase(resourceType)) {
-                List<Resource> observations = fetchObservationsByCodesAndPatient(patientId, valuesetObservationCodes);
-                log.info("Trovate {} Observation per patientId={}", observations.size(), patientId);
-                allResources.addAll(observations);
-            } else {
+        // 4. Per ogni resourceType: cerca il ValueSet "<resourceType>-code"
+        // ed esegui la search filtrata per quei codici sul Patient.
+        for (String resourceType : resourceTypes) {
+            String codeValueSetId = resourceType + CODE_VALUESET_SUFFIX;
+            List<Coding> codes = estraiCodingsFromValueSetContained(opDef, codeValueSetId);
+
+            if (codes.isEmpty()) {
+                // Fallback: nessun ValueSet di codici → prendi l'ultima risorsa di
+                // quel tipo per il paziente
+                log.warn("Nessun ValueSet '{}' trovato nell'OperationDefinition. " +
+                        "Fallback: recupero ultima risorsa tipo={} per patientId={}",
+                        codeValueSetId, resourceType, patientId);
                 Resource last = fetchLastResourceByPatient(resourceType, patientId);
                 if (last != null) {
-                    log.info("Ultima risorsa tipo={} per patientId={}", resourceType, patientId);
                     allResources.add(last);
                 }
+                continue;
             }
+
+            List<Resource> resources = fetchResourcesByCodesAndPatient(resourceType, patientId, codes);
+            log.info("Recuperate {} risorse di tipo {} per patientId={} (codici filtrati={})",
+                    resources.size(), resourceType, patientId, codes.size());
+            allResources.addAll(resources);
         }
 
-        // 5. Costruisci Bundle
+        // 5. Costruisci Bundle searchset
         return buildBundle(allResources);
     }
-     
 
     // =========================================================================
     // Risoluzione Patient: identifier (system|value) → HAPI logical ID
     // =========================================================================
 
-    /**
-     * Cerca il Patient sul server HAPI tramite il suo identifier.
-     * Lancia ResourceNotFoundException se non trovato.
-     */
     private String findPatientIdByIdentifier(String system, String value) {
         IFhirResourceDao<Patient> patientDao = daoRegistry.getResourceDao(Patient.class);
 
@@ -102,7 +128,7 @@ public class EngineComponent implements IResourceProvider {
 
         if (result.isEmpty()) {
             throw new ResourceNotFoundException(
-                "Nessun Patient trovato con identifier " + system + "|" + value);
+                    "Nessun Patient trovato con identifier " + system + "|" + value);
         }
 
         Patient patient = (Patient) result.getResources(0, 1).get(0);
@@ -112,16 +138,13 @@ public class EngineComponent implements IResourceProvider {
     }
 
     // =========================================================================
-    // Fetch ultima risorsa (non-Observation) per patient
+    // Fetch ultima risorsa (fallback) per patient
     // =========================================================================
 
     /**
      * Recupera l'ultima risorsa del tipo specificato associata al Patient,
-     * ordinando per _lastUpdated DESC e prendendo solo il primo risultato.
-     *
-     * Nota: usa il search parameter "patient" che è standard per la maggior
-     * parte dei resourceType clinici (DiagnosticReport, Condition, ecc.).
-     * Se un tipo usa "subject" invece di "patient", aggiungere un branch apposito.
+     * ordinando per _lastUpdated DESC. Usato come fallback quando non esiste
+     * un ValueSet "<resourceType>-code" nell'OperationDefinition.
      */
     public Resource fetchLastResourceByPatient(String resourceType, String patientId) {
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
@@ -136,46 +159,49 @@ public class EngineComponent implements IResourceProvider {
         if (results.size() != null && results.size() > 0) {
             return (Resource) results.getResources(0, 1).get(0);
         }
-
         return null;
     }
 
     // =========================================================================
-    // Fetch tutte le Observation per codici + patient
+    // Fetch risorse per codici + patient (generico per qualsiasi resourceType)
     // =========================================================================
 
-    public List<Resource> fetchObservationsByCodesAndPatient(String patientId, List<Coding> codes) {
-        IFhirResourceDao<Observation> dao = daoRegistry.getResourceDao(Observation.class);
+    /**
+     * Esegue la search del resourceType indicato filtrando per Patient e per
+     * la OR-list di codici. Il search parameter usato per i codici è "code"
+     * di default; le eccezioni sono dichiarate in CODE_SEARCH_PARAM_BY_TYPE.
+     */
+    public List<Resource> fetchResourcesByCodesAndPatient(String resourceType,
+            String patientId,
+            List<Coding> codes) {
+        IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
+        String codeSearchParam = CODE_SEARCH_PARAM_BY_TYPE.getOrDefault(resourceType, "code");
 
         SearchParameterMap params = new SearchParameterMap();
+        params.add("patient", new ReferenceParam("Patient/" + patientId));
 
-        // Filtro sul subject (Patient)
-        params.add("subject", new ReferenceParam("Patient/" + patientId));
-
-        // OR sui codici LOINC estratti dal ValueSet
         TokenOrListParam codeOrList = new TokenOrListParam();
         for (Coding coding : codes) {
             codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
         }
-        params.add("code", codeOrList);
-
+        params.add(codeSearchParam, codeOrList);
         params.setCount(1000);
 
         IBundleProvider results = dao.search(params);
 
-        List<Resource> observations = new ArrayList<>();
+        List<Resource> out = new ArrayList<>();
         int fromIndex = 0;
-        int pageSize  = 100;
+        int pageSize = 100;
 
-        // Paginazione interna per raccogliere tutti i risultati
         while (true) {
             List<IBaseResource> page = results.getResources(fromIndex, fromIndex + pageSize);
-            if (page == null || page.isEmpty()) break;
-            page.forEach(r -> observations.add((Resource) r));
+            if (page == null || page.isEmpty())
+                break;
+            page.forEach(r -> out.add((Resource) r));
             fromIndex += pageSize;
         }
 
-        return observations;
+        return out;
     }
 
     // =========================================================================
@@ -183,9 +209,10 @@ public class EngineComponent implements IResourceProvider {
     // =========================================================================
 
     /**
-     * Estrae i soli codici (String) da un ValueSet contained — usato per i resourceType.
+     * Estrae i codici (String) da un ValueSet contained. Usato per
+     * "vs-resource-types".
      */
-    private List<String> estraiValueFromValueSetContained(OperationDefinition opDef, String internalId) {
+    private List<String> estraiCodesFromValueSetContained(OperationDefinition opDef, String internalId) {
         String targetId = normalizeId(internalId);
 
         return opDef.getContained().stream()
@@ -207,8 +234,9 @@ public class EngineComponent implements IResourceProvider {
     }
 
     /**
-     * Estrae i Coding completi (system + code) da un ValueSet contained — usato per le Observation.
-     * Necessario per costruire la TokenOrListParam con system corretto (es. http://loinc.org).
+     * Estrae Coding completi (system + code + display) da un ValueSet contained.
+     * Usato per i ValueSet "<resourceType>-code" per costruire la TokenOrListParam
+     * con il system corretto (es. http://loinc.org).
      */
     private List<Coding> estraiCodingsFromValueSetContained(OperationDefinition opDef, String internalId) {
         String targetId = normalizeId(internalId);
@@ -218,7 +246,6 @@ public class EngineComponent implements IResourceProvider {
                 .map(r -> (ValueSet) r)
                 .filter(vs -> targetId.equals(normalizeId(vs.getIdElement().getIdPart())))
                 .flatMap(vs -> {
-                    // Dal Compose: manteniamo il system per ogni include
                     Stream<Coding> fromCompose = vs.getCompose().getInclude().stream()
                             .flatMap(inc -> inc.getConcept().stream()
                                     .map(concept -> new Coding()
@@ -226,7 +253,6 @@ public class EngineComponent implements IResourceProvider {
                                             .setCode(concept.getCode())
                                             .setDisplay(concept.getDisplay())));
 
-                    // Dall'Expansion (se presente)
                     Stream<Coding> fromExpansion = vs.getExpansion().getContains().stream()
                             .map(c -> new Coding()
                                     .setSystem(c.getSystem())
@@ -243,26 +269,24 @@ public class EngineComponent implements IResourceProvider {
     // =========================================================================
 
     private OperationDefinition searchOperationDefinition(String name, String publisher) {
-        IFhirResourceDao<OperationDefinition> opDefDao =
-                daoRegistry.getResourceDao(OperationDefinition.class);
+        IFhirResourceDao<OperationDefinition> opDefDao = daoRegistry.getResourceDao(OperationDefinition.class);
 
         SearchParameterMap map = new SearchParameterMap();
         map.add(OperationDefinition.SP_CODE, new TokenParam(name));
 
-        
         if (publisher != null && !publisher.isEmpty()) {
             map.add(OperationDefinition.SP_PUBLISHER, new StringParam(publisher));
         }
 
-        // Ordiniamo per _lastUpdated DESC così prendiamo sempre la versione più recente
+        // Prendiamo sempre la versione più recente
         map.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
 
         IBundleProvider result = opDefDao.search(map);
 
         if (result.isEmpty()) {
             throw new ResourceNotFoundException(
-                "Nessuna OperationDefinition trovata con nome: " + name +
-                (publisher != null ? " e publisher: " + publisher : ""));
+                    "Nessuna OperationDefinition trovata con nome: " + name +
+                            (publisher != null ? " e publisher: " + publisher : ""));
         }
 
         OperationDefinition opDef = (OperationDefinition) result.getResources(0, 1).get(0);
@@ -278,9 +302,10 @@ public class EngineComponent implements IResourceProvider {
     // Utility
     // =========================================================================
 
-    /** Rimuove il '#' iniziale dall'ID per confronto uniforme */
+    /** Rimuove il '#' iniziale dall'ID per confronto uniforme. */
     private String normalizeId(String id) {
-        if (id == null) return null;
+        if (id == null)
+            return null;
         return id.startsWith("#") ? id.substring(1) : id;
     }
 
