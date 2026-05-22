@@ -29,8 +29,12 @@ public class SintesiConfig {
     @Autowired
     private PacchettoProvider pacchettoProvider;
 
+    @Autowired
+    private DatiCliniciDisponibiliProvider datiCliniciDisponibiliProvider;
+
     @PostConstruct
     public void registerProviders() {
         restfulServer.registerProvider(pacchettoProvider);
+        restfulServer.registerProvider(datiCliniciDisponibiliProvider);
     }
 }
