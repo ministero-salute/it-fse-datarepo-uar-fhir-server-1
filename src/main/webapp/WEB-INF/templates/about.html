@@ -78,7 +78,8 @@
         if (exists) {
             loadFile("content/custom/about.html", function(content) {
                 var replacementContainer = document.getElementById("replacementAbout");
-                replacementContainer.innerHTML = content;
+                // Use textContent instead of innerHTML to prevent XSS attacks
+                replacementContainer.textContent = content;
             });
         }
     });

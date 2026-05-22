@@ -21,7 +21,8 @@
 				if (exists) {
 					loadFile("content/custom/welcome.html", function(content) {
 						var replacementContainer = document.getElementById("replacementWelcome");
-						replacementContainer.innerHTML = content;
+						// Use textContent instead of innerHTML to prevent XSS attacks
+						replacementContainer.textContent = content;
 					});
 				}
 			});
