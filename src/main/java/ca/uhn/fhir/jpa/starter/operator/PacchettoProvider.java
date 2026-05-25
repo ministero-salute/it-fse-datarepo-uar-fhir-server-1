@@ -34,7 +34,7 @@ public class PacchettoProvider {
                 : "urn:oid:2.16.840.1.113883.2.9.4.3.17";
         String codeStr = code != null ? code.getValue() : null;
 
-        return engineComponent.getBundle(codeStr, publisherStr, cfStr, patientSystemStr);
+        return engineComponent.getBundle(codeStr, publisherStr, cfStr, patientSystemStr,requestDetails);
     }
 
 }

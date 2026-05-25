@@ -26,6 +26,7 @@ import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.rest.api.SortOrderEnum;
 import ca.uhn.fhir.rest.api.SortSpec;
 import ca.uhn.fhir.rest.api.server.IBundleProvider;
+import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import ca.uhn.fhir.rest.param.StringParam;
 import ca.uhn.fhir.rest.param.TokenOrListParam;
@@ -64,7 +65,7 @@ public class EngineComponent implements IResourceProvider {
     public Bundle getBundle(String nomeOperationCustom,
             String publisher,
             String codiceFiscale,
-            String patientIdentifierSystem) {
+            String patientIdentifierSystem, RequestDetails theRequestDetails) {
 
         // 1. Trova l'OperationDefinition per name + publisher
         OperationDefinition opDef = searchOperationDefinition(nomeOperationCustom, publisher);
@@ -79,7 +80,7 @@ public class EngineComponent implements IResourceProvider {
         }
 
         // 3. Risolvi il Patient tramite identifier (CF dell'assistito)
-        String patientId = findPatientIdByIdentifier(patientIdentifierSystem, codiceFiscale);
+        String patientId = findPatientIdByIdentifier(patientIdentifierSystem, codiceFiscale,theRequestDetails);
         log.info("Patient HAPI ID: {}", patientId);
 
         List<Resource> allResources = new ArrayList<>();
@@ -117,14 +118,14 @@ public class EngineComponent implements IResourceProvider {
     // Risoluzione Patient: identifier (system|value) → HAPI logical ID
     // =========================================================================
 
-    private String findPatientIdByIdentifier(String system, String value) {
+    private String findPatientIdByIdentifier(String system, String value, RequestDetails theRequestDetails)  {
         IFhirResourceDao<Patient> patientDao = daoRegistry.getResourceDao(Patient.class);
 
         SearchParameterMap params = new SearchParameterMap();
         params.add(Patient.SP_IDENTIFIER, new TokenParam(system, value));
         params.setCount(1);
 
-        IBundleProvider result = patientDao.search(params);
+        IBundleProvider result = patientDao.search(params,theRequestDetails);
 
         if (result.isEmpty()) {
             throw new ResourceNotFoundException(
