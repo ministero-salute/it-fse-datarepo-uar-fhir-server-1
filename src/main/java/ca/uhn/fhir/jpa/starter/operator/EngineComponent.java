@@ -3,7 +3,6 @@ package ca.uhn.fhir.jpa.starter.operator;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -20,9 +19,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import ca.uhn.fhir.context.RuntimeSearchParam;
 import ca.uhn.fhir.jpa.api.dao.DaoRegistry;
 import ca.uhn.fhir.jpa.api.dao.IFhirResourceDao;
 import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
+import ca.uhn.fhir.rest.api.RestSearchParameterTypeEnum;
 import ca.uhn.fhir.rest.api.SortOrderEnum;
 import ca.uhn.fhir.rest.api.SortSpec;
 import ca.uhn.fhir.rest.api.server.IBundleProvider;
@@ -33,9 +34,20 @@ import ca.uhn.fhir.rest.param.TokenOrListParam;
 import ca.uhn.fhir.rest.param.TokenParam;
 import ca.uhn.fhir.rest.server.IResourceProvider;
 import ca.uhn.fhir.rest.server.exceptions.ResourceNotFoundException;
+import ca.uhn.fhir.rest.server.util.ISearchParamRegistry;
+import ca.uhn.fhir.rest.server.util.ResourceSearchParams;
 
 @Component
 public class EngineComponent implements IResourceProvider {
+	
+	@Autowired
+	private ISearchParamRegistry searchParamRegistry;
+
+	private static final List<String> CODE_PARAM_CANDIDATES = List.of(
+	    "code", "vaccine-code", "type", "category", "modality", "morphology",
+	    "reason-code", "medication", "finding-code"
+	);
+
 
     private static final Logger log = LoggerFactory.getLogger(EngineComponent.class);
 
@@ -47,12 +59,6 @@ public class EngineComponent implements IResourceProvider {
      * (es. "Observation-code").
      */
     private static final String CODE_VALUESET_SUFFIX = "-code";
-
-    /**
-     * Mapping resourceType → search parameter usato per filtrare sui codici.
-     */
-    private static final Map<String, String> CODE_SEARCH_PARAM_BY_TYPE = Map.of(
-            "Encounter", "type");
 
     @Autowired
     private DaoRegistry daoRegistry;
@@ -97,14 +103,14 @@ public class EngineComponent implements IResourceProvider {
                 log.warn("Nessun ValueSet '{}' trovato nell'OperationDefinition. " +
                         "Fallback: recupero ultima risorsa tipo={} per patientId={}",
                         codeValueSetId, resourceType, patientId);
-                Resource last = fetchLastResourceByPatient(resourceType, patientId);
+                Resource last = fetchLastResourceByPatient(resourceType, patientId, theRequestDetails);
                 if (last != null) {
                     allResources.add(last);
                 }
                 continue;
             }
 
-            List<Resource> resources = fetchResourcesByCodesAndPatient(resourceType, patientId, codes);
+            List<Resource> resources = fetchResourcesByCodesAndPatient(resourceType, patientId, codes, theRequestDetails);
             log.info("Recuperate {} risorse di tipo {} per patientId={} (codici filtrati={})",
                     resources.size(), resourceType, patientId, codes.size());
             allResources.addAll(resources);
@@ -147,7 +153,7 @@ public class EngineComponent implements IResourceProvider {
      * ordinando per _lastUpdated DESC. Usato come fallback quando non esiste
      * un ValueSet "<resourceType>-code" nell'OperationDefinition.
      */
-    public Resource fetchLastResourceByPatient(String resourceType, String patientId) {
+    public Resource fetchLastResourceByPatient(String resourceType, String patientId, RequestDetails theRequestDetails) {
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
 
         SearchParameterMap params = new SearchParameterMap();
@@ -155,7 +161,7 @@ public class EngineComponent implements IResourceProvider {
         params.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
         params.setCount(1);
 
-        IBundleProvider results = dao.search(params);
+        IBundleProvider results = dao.search(params,theRequestDetails);
 
         if (results.size() != null && results.size() > 0) {
             return (Resource) results.getResources(0, 1).get(0);
@@ -172,23 +178,64 @@ public class EngineComponent implements IResourceProvider {
      * la OR-list di codici. Il search parameter usato per i codici è "code"
      * di default; le eccezioni sono dichiarate in CODE_SEARCH_PARAM_BY_TYPE.
      */
+//    public List<Resource> fetchResourcesByCodesAndPatient(String resourceType,
+//            String patientId,
+//            List<Coding> codes, RequestDetails theRequestDetails) {
+//        IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
+//        String codeSearchParam = CODE_SEARCH_PARAM_BY_TYPE.getOrDefault(resourceType, "code");
+//
+//        SearchParameterMap params = new SearchParameterMap();
+//        params.add("patient", new ReferenceParam("Patient/" + patientId));
+//
+//        TokenOrListParam codeOrList = new TokenOrListParam();
+//        for (Coding coding : codes) {
+//            codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
+//        }
+//        params.add(codeSearchParam, codeOrList);
+//        params.setCount(1000);
+//
+//        IBundleProvider results = dao.search(params,theRequestDetails);
+//
+//        List<Resource> out = new ArrayList<>();
+//        int fromIndex = 0;
+//        int pageSize = 100;
+//
+//        while (true) {
+//            List<IBaseResource> page = results.getResources(fromIndex, fromIndex + pageSize);
+//            if (page == null || page.isEmpty())
+//                break;
+//            page.forEach(r -> out.add((Resource) r));
+//            fromIndex += pageSize;
+//        }
+//
+//        return out;
+//    }
+    
     public List<Resource> fetchResourcesByCodesAndPatient(String resourceType,
             String patientId,
-            List<Coding> codes) {
+            List<Coding> codes,
+            RequestDetails theRequestDetails) {
+
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
-        String codeSearchParam = CODE_SEARCH_PARAM_BY_TYPE.getOrDefault(resourceType, "code");
 
         SearchParameterMap params = new SearchParameterMap();
         params.add("patient", new ReferenceParam("Patient/" + patientId));
 
-        TokenOrListParam codeOrList = new TokenOrListParam();
-        for (Coding coding : codes) {
-            codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
-        }
-        params.add(codeSearchParam, codeOrList);
-        params.setCount(1000);
+        // Risoluzione dinamica del search param per i codici
+        String codeSearchParam = resolveCodeSearchParam(resourceType);
 
-        IBundleProvider results = dao.search(params);
+        if (codeSearchParam != null && codes != null && !codes.isEmpty()) {
+            TokenOrListParam codeOrList = new TokenOrListParam();
+            for (Coding coding : codes) {
+                codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
+            }
+            params.add(codeSearchParam, codeOrList);
+            log.info("Ricerca resourceType='{}' con search param='{}', {} codici",
+                    resourceType, codeSearchParam, codes.size());
+        }
+
+        params.setCount(1000);
+        IBundleProvider results = dao.search(params, theRequestDetails);
 
         List<Resource> out = new ArrayList<>();
         int fromIndex = 0;
@@ -196,8 +243,7 @@ public class EngineComponent implements IResourceProvider {
 
         while (true) {
             List<IBaseResource> page = results.getResources(fromIndex, fromIndex + pageSize);
-            if (page == null || page.isEmpty())
-                break;
+            if (page == null || page.isEmpty()) break;
             page.forEach(r -> out.add((Resource) r));
             fromIndex += pageSize;
         }
@@ -328,5 +374,31 @@ public class EngineComponent implements IResourceProvider {
         }
 
         return bundle;
+    }
+    
+    private String resolveCodeSearchParam(String resourceType) {
+        ResourceSearchParams activeParams = searchParamRegistry.getActiveSearchParams(resourceType);
+
+        // Livello 1: candidati prioritari nell'ordine definito
+        for (String candidate : CODE_PARAM_CANDIDATES) {
+            RuntimeSearchParam param = activeParams.get(candidate);
+            if (param != null && param.getParamType() == RestSearchParameterTypeEnum.TOKEN) {
+                log.debug("Search param '{}' risolto per resourceType='{}' (candidato prioritario)", candidate, resourceType);
+                return candidate;
+            }
+        }
+
+        // Livello 2: qualsiasi TOKEN il cui path FHIRPath termina con ".code"
+        return activeParams.values().stream()
+                .filter(p -> p.getParamType() == RestSearchParameterTypeEnum.TOKEN)
+                .filter(p -> !p.getName().startsWith("_"))
+                .filter(p -> p.getPath() != null && p.getPath().endsWith(".code"))
+                .map(RuntimeSearchParam::getName)
+                .peek(name -> log.debug("Search param '{}' risolto per resourceType='{}' (fallback path .code)", name, resourceType))
+                .findFirst()
+                .orElseGet(() -> {
+                    log.warn("Nessun search parameter TOKEN trovato per resourceType='{}': " + "ricerca verrà eseguita senza filtro codice.", resourceType);
+                    return null;
+                });
     }
 }
