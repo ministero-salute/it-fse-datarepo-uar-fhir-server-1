@@ -115,7 +115,8 @@ public class DatiCliniciDisponibiliProvider {
         if (patients.isEmpty()) {
             throw new InvalidRequestException(
                     "Nessun Patient trovato con identifier: "
-                            + patientSystem.getValue() + "|" + patientValue.getValue());
+                            + patientSystem != null ? patientSystem.getValue()
+                : "urn:oid:2.16.840.1.113883.2.9.4.3.17" + "|" + patientValue.getValue());
         }
 
         IIdType patientId = patients.get(0).getIdElement().toUnqualifiedVersionless();
