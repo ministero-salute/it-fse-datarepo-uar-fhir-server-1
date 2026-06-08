@@ -94,15 +94,17 @@ public class DatiCliniciDisponibiliProvider {
             }
         }
 
+        String patientSystemStr = patientSystem != null ? patientSystem.getValue()
+                : "urn:oid:2.16.840.1.113883.2.9.4.3.17";
+        String patientValueStr = patientValue.getValue();
+
         // ── 1. Risolvi identifier → Patient FHIR ID ──────────────────────────
         SearchParameterMap patientSearch = new SearchParameterMap();
         patientSearch.setLoadSynchronous(true);
         patientSearch.add(
                 Patient.SP_IDENTIFIER,
                 new TokenParam(
-                        patientSystem != null ? patientSystem.getValue()
-                : "urn:oid:2.16.840.1.113883.2.9.4.3.17",
-                        patientValue.getValue()));
+                        patientSystemStr, patientValueStr));
 
         IBundleProvider patientResults = patientDao.search(patientSearch, requestDetails);
 
@@ -115,8 +117,7 @@ public class DatiCliniciDisponibiliProvider {
         if (patients.isEmpty()) {
             throw new InvalidRequestException(
                     "Nessun Patient trovato con identifier: "
-                            + patientSystem != null ? patientSystem.getValue()
-                : "urn:oid:2.16.840.1.113883.2.9.4.3.17" + "|" + patientValue.getValue());
+                            + patientSystemStr + "|" + patientValueStr);
         }
 
         IIdType patientId = patients.get(0).getIdElement().toUnqualifiedVersionless();
