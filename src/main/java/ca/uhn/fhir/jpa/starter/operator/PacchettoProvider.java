@@ -30,11 +30,9 @@ public class PacchettoProvider {
 
         String publisherStr = publisher != null ? publisher.getValue() : null;
         String cfStr = codiceFiscale != null ? codiceFiscale.getValue() : null;
-        String patientSystemStr = patientSystem != null ? patientSystem.getValue()
-                : "urn:oid:2.16.840.1.113883.2.9.4.3.17";
         String codeStr = code != null ? code.getValue() : null;
 
-        return engineComponent.getBundle(codeStr, publisherStr, cfStr, patientSystemStr,requestDetails);
+        return engineComponent.getBundle(codeStr, publisherStr, cfStr, null,requestDetails);
     }
 
 }

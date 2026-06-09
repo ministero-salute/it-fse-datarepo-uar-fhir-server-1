@@ -155,7 +155,7 @@ public class EngineComponent implements IResourceProvider {
 
         if (result.isEmpty()) {
             throw new ResourceNotFoundException(
-                    "Nessun Patient trovato con identifier " + system + "|" + value);
+                    "Nessun Patient trovato con identifier "  + value);
         }
 
         Patient patient = (Patient) result.getResources(0, 1).get(0);

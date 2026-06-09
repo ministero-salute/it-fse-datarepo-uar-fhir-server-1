@@ -83,6 +83,8 @@ public class DatiCliniciDisponibiliProvider {
             @OperationParam(name = "resourceType", min = 0) StringType resourceType,
             RequestDetails requestDetails) {
 
+        // *************************************
+        // Check on resourceType
         if (resourceType != null && !resourceType.isEmpty()) {
             String rt = resourceType.getValue();
             if (!SUPPORTED_RESOURCE_TYPES.contains(rt)) {
@@ -92,12 +94,12 @@ public class DatiCliniciDisponibiliProvider {
             }
         }
 
+        // **************************************
+        // Search PATIENT
         String patientValueStr = patientValue.getValue();
-
         SearchParameterMap patientSearch = new SearchParameterMap();
         patientSearch.setLoadSynchronous(true);
         patientSearch.add(Patient.SP_IDENTIFIER, new TokenParam(null, patientValueStr));
-
         IBundleProvider patientResults = patientDao.search(patientSearch, requestDetails);
 
         List<Patient> patients = patientResults.getResources(0, Integer.MAX_VALUE)
@@ -113,6 +115,8 @@ public class DatiCliniciDisponibiliProvider {
 
         IIdType patientId = patients.get(0).getIdElement().toUnqualifiedVersionless();
 
+        // ********************************
+        // DATE RANGE
         DateRangeParam dateRange = null;
         if (dateFrom != null || dateTo != null) {
             dateRange = new DateRangeParam();
