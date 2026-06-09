@@ -78,7 +78,6 @@ public class DatiCliniciDisponibiliProvider {
     @Operation(name = "$dati-clinici-disponibili", idempotent = true)
     public Parameters datiCliniciDisponibili(
             @OperationParam(name = "patientValue", min = 1) StringType patientValue,
-            @OperationParam(name = "patientSystem", min = 1) StringType patientSystem,
             @OperationParam(name = "dateFrom", min = 0) DateType dateFrom,
             @OperationParam(name = "dateTo", min = 0) DateType dateTo,
             @OperationParam(name = "resourceType", min = 0) StringType resourceType,
@@ -94,8 +93,6 @@ public class DatiCliniciDisponibiliProvider {
             }
         }
 
-        String patientSystemStr = patientSystem != null ? patientSystem.getValue()
-                : "urn:oid:2.16.840.1.113883.2.9.4.3.17";
         String patientValueStr = patientValue.getValue();
 
         // ── 1. Risolvi identifier → Patient FHIR ID ──────────────────────────
@@ -103,8 +100,7 @@ public class DatiCliniciDisponibiliProvider {
         patientSearch.setLoadSynchronous(true);
         patientSearch.add(
                 Patient.SP_IDENTIFIER,
-                new TokenParam(
-                        patientSystemStr, patientValueStr));
+                new TokenParam(null, patientValueStr));
 
         IBundleProvider patientResults = patientDao.search(patientSearch, requestDetails);
 
@@ -116,8 +112,7 @@ public class DatiCliniciDisponibiliProvider {
 
         if (patients.isEmpty()) {
             throw new InvalidRequestException(
-                    "Nessun Patient trovato con identifier: "
-                            + patientSystemStr + "|" + patientValueStr);
+                    "Nessun Patient trovato con identifier: " + patientValueStr);
         }
 
         IIdType patientId = patients.get(0).getIdElement().toUnqualifiedVersionless();
