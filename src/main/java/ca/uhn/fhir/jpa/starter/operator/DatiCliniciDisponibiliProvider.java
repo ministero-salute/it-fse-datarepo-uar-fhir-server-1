@@ -172,7 +172,7 @@ public class DatiCliniciDisponibiliProvider {
                 dateRange);
 
         map.addRevInclude(new Include("Composition:entry"));
-        map.addRevInclude(new Include("DocumentReference:related"));
+        map.addRevInclude(new Include("DocumentReference:related", true));
 
         IBundleProvider results = dao.search(map, requestDetails);
 
