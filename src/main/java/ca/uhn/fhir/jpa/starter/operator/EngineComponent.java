@@ -142,8 +142,8 @@ public class EngineComponent implements IResourceProvider {
                 log.warn("Nessun ValueSet '{}' trovato nell'OperationDefinition. " +
                         "Fallback: recupero ultima risorsa tipo={} per patientId={}",
                         codeValueSetId, resourceType, patientId);
-                Resource last = fetchLastResourceByPatient(resourceType, patientId, theRequestDetails, collected);
-                if (last != null) {
+                List<Resource> last = fetchLastResourceByPatient(resourceType, patientId, theRequestDetails, collected);
+                if (last != null && !last.isEmpty()) {
                     log.info("Found last resource for type {}", resourceType);
                 }
                 continue;
@@ -192,7 +192,7 @@ public class EngineComponent implements IResourceProvider {
      * ordinando per _lastUpdated DESC. Usato come fallback quando non esiste
      * un ValueSet "<resourceType>-code" nell'OperationDefinition.
      */
-    public Resource fetchLastResourceByPatient(
+    public List<Resource> fetchLastResourceByPatient(
             String resourceType,
             String patientId,
             RequestDetails theRequestDetails,
@@ -209,14 +209,18 @@ public class EngineComponent implements IResourceProvider {
             params.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
         }
 
-        params.setCount(1);
+        params.setCount(10);
 
         IBundleProvider results = dao.search(params, theRequestDetails);
 
         if (results.size() != null && results.size() > 0) {
-            Resource resource = (Resource) results.getResources(0, 1).get(0);
-            collectResourceGraph(resource, patientId, theRequestDetails, collected);
-            return resource;
+            List<Resource> output = new ArrayList<>();
+            for (IBaseResource baseResource : results.getAllResources()) {
+                Resource resource = (Resource) baseResource;
+                collectResourceGraph(resource, patientId, theRequestDetails, collected);
+                output.add(resource);
+            }
+            return output;
         }
         return null;
     }

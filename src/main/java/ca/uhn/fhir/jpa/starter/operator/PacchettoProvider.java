@@ -25,7 +25,7 @@ public class PacchettoProvider {
             RequestDetails requestDetails) {
 
         if (code == null || publisher == null) {
-            // TODO: alzare un eccezione.
+            throw new RuntimeException("Il code e il publisher non possono essere nulli per l'esecuzione del pacchetto.");
         }
 
         String publisherStr = publisher != null ? publisher.getValue() : null;
