@@ -32,9 +32,13 @@ public class SintesiConfig {
     @Autowired
     private DatiCliniciDisponibiliProvider datiCliniciDisponibiliProvider;
 
+    @Autowired
+    private CompilazionePatientSummaryProvider compilazionePatientSummaryProvider;
+
     @PostConstruct
     public void registerProviders() {
         restfulServer.registerProvider(pacchettoProvider);
         restfulServer.registerProvider(datiCliniciDisponibiliProvider);
+        restfulServer.registerProvider(compilazionePatientSummaryProvider);
     }
 }

@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
@@ -23,8 +25,10 @@ import org.hl7.fhir.r4.model.DocumentReference;
 import org.hl7.fhir.r4.model.Encounter;
 import org.hl7.fhir.r4.model.IdType;
 import org.hl7.fhir.r4.model.Immunization;
+import org.hl7.fhir.r4.model.Medication;
 import org.hl7.fhir.r4.model.MedicationAdministration;
 import org.hl7.fhir.r4.model.MedicationRequest;
+import org.hl7.fhir.r4.model.MedicationStatement;
 import org.hl7.fhir.r4.model.Observation;
 import org.hl7.fhir.r4.model.OperationDefinition;
 import org.hl7.fhir.r4.model.Patient;
@@ -48,6 +52,8 @@ import ca.uhn.fhir.rest.api.SortOrderEnum;
 import ca.uhn.fhir.rest.api.SortSpec;
 import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
+import ca.uhn.fhir.rest.param.DateParam;
+import ca.uhn.fhir.rest.param.DateRangeParam;
 import ca.uhn.fhir.rest.param.ReferenceParam;
 import ca.uhn.fhir.rest.param.StringParam;
 import ca.uhn.fhir.rest.param.TokenOrListParam;
@@ -163,7 +169,7 @@ public class EngineComponent implements IResourceProvider {
     // Risoluzione Patient: identifier (system|value) → HAPI logical ID
     // =========================================================================
 
-    private String findPatientIdByIdentifier(String system, String value, RequestDetails theRequestDetails) {
+    public String findPatientIdByIdentifier(String system, String value, RequestDetails theRequestDetails) {
         IFhirResourceDao<Patient> patientDao = daoRegistry.getResourceDao(Patient.class);
 
         SearchParameterMap params = new SearchParameterMap();
@@ -171,6 +177,13 @@ public class EngineComponent implements IResourceProvider {
         params.setCount(1);
 
         IBundleProvider result = patientDao.search(params, theRequestDetails);
+
+        if (result.isEmpty()) {
+            SearchParameterMap fallbackParams = new SearchParameterMap();
+            fallbackParams.add(Patient.SP_IDENTIFIER, new TokenParam(null, value));
+            fallbackParams.setCount(1);
+            result = patientDao.search(fallbackParams, theRequestDetails);
+        }
 
         if (result.isEmpty()) {
             throw new ResourceNotFoundException(
@@ -224,6 +237,85 @@ public class EngineComponent implements IResourceProvider {
         }
         return null;
     }
+
+    public List<Resource> fetchResources(
+            String resourceType,
+            String patientId,
+            List<Coding> codes,
+            DateRangeParam dateRange,
+            RequestDetails theRequestDetails,
+            Map<String, Resource> collected,
+            boolean includeGraph) {
+
+        IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
+
+        SearchParameterMap params = new SearchParameterMap();
+        String patientSearchParam = resolvePatientReferenceSearchParam(resourceType);
+        params.add(patientSearchParam, new ReferenceParam("Patient/" + patientId));
+
+        if (dateRange != null) {
+            String dateSearchParam = resolveDateSearchParam(resourceType);
+            if (dateSearchParam != null) {
+                params.add(dateSearchParam, dateRange);
+            } else {
+                log.warn("No date search parameter found for {}. Date filter skipped.", resourceType);
+            }
+        }
+
+        String codeSearchParam = null;
+        if (codes != null && !codes.isEmpty()) {
+            codeSearchParam = resolveCanonicalCodeSearchParam(resourceType);
+            if (codeSearchParam == null) {
+                codeSearchParam = resolveResourceSpecificCodeSearchParam(resourceType);
+            }
+
+            if (codeSearchParam == null) {
+                log.warn("No code search parameter found for {}. Code filter skipped.", resourceType);
+            } else {
+                TokenOrListParam codeOrList = new TokenOrListParam();
+                for (Coding coding : codes) {
+                    codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
+                }
+                params.add(codeSearchParam, codeOrList);
+            }
+        }
+
+        params.setCount(1000);
+        IBundleProvider results = dao.search(params, theRequestDetails);
+
+        List<Resource> out = new ArrayList<>();
+        int fromIndex = 0;
+        int pageSize = 100;
+        int maxResults = 1000;
+
+        while (true) {
+            List<IBaseResource> page = results.getResources(fromIndex, fromIndex + pageSize);
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+
+            for (IBaseResource res : page) {
+                if (res instanceof Resource) {
+                    Resource resource = (Resource) res;
+                    if (includeGraph) {
+                        collectResourceGraph(resource, patientId, theRequestDetails, collected);
+                    } else {
+                        collected.put(resourceKey(resource), resource);
+                    }
+                    out.add(resource);
+                }
+            }
+
+            fromIndex += pageSize;
+            if (out.size() >= maxResults) {
+                log.info("Reached maximum of {} resources for type {}", maxResults, resourceType);
+                break;
+            }
+        }
+
+        return out;
+    }
+
 
     // =========================================================================
     // Fetch risorse per codici + patient (generico per qualsiasi resourceType)
@@ -442,7 +534,7 @@ public class EngineComponent implements IResourceProvider {
     // Costruzione Bundle searchset
     // =========================================================================
 
-    private Bundle buildBundle(List<Resource> resources) {
+    public Bundle buildBundle(List<Resource> resources) {
         Bundle bundle = new Bundle();
         bundle.setId(UUID.randomUUID().toString());
         bundle.setType(Bundle.BundleType.SEARCHSET);
@@ -466,7 +558,7 @@ public class EngineComponent implements IResourceProvider {
      * @param resourceType The FHIR resource type
      * @return The canonical search parameter name, or null if not configured
      */
-    private String resolveCanonicalCodeSearchParam(String resourceType) {
+    public String resolveCanonicalCodeSearchParam(String resourceType) {
         // Check if a canonical parameter like "clinical-code" exists
         // This would be a custom SearchParameter configured on the server
 
@@ -500,7 +592,7 @@ public class EngineComponent implements IResourceProvider {
      * @param resourceType The FHIR resource type
      * @return The search parameter name, or null if none found
      */
-    private String resolveResourceSpecificCodeSearchParam(String resourceType) {
+    public String resolveResourceSpecificCodeSearchParam(String resourceType) {
         // Priority 1: Check explicit configuration map
         // This could be extended to read from application.yaml in the future
         Map<String, String> explicitMappings = new HashMap<>();
@@ -588,6 +680,45 @@ public class EngineComponent implements IResourceProvider {
         return null;
     }
 
+    public String resolvePatientReferenceSearchParam(String resourceType) {
+        Map<String, String> explicitMappings = new HashMap<>();
+        explicitMappings.put("MedicationStatement", "subject");
+        explicitMappings.put("MedicationAdministration", "subject");
+        explicitMappings.put("Immunization", "patient");
+        explicitMappings.put("Observation", "patient");
+        explicitMappings.put("Procedure", "patient");
+        explicitMappings.put("Encounter", "patient");
+        explicitMappings.put("Condition", "patient");
+        explicitMappings.put("DiagnosticReport", "patient");
+
+        String explicitParam = explicitMappings.get(resourceType);
+        if (explicitParam != null) {
+            try {
+                RuntimeSearchParam searchParam = searchParamRegistry.getActiveSearchParam(resourceType, explicitParam);
+                if (searchParam != null) {
+                    return explicitParam;
+                }
+            } catch (Exception e) {
+                log.debug("Explicit patient reference mapping '{}' not available for {}", explicitParam, resourceType);
+            }
+        }
+
+        List<String> candidateNames = Arrays.asList("patient", "subject", "individual");
+        for (String candidateName : candidateNames) {
+            try {
+                RuntimeSearchParam searchParam = searchParamRegistry.getActiveSearchParam(resourceType, candidateName);
+                if (searchParam != null && "reference".equals(searchParam.getParamType().name().toLowerCase())) {
+                    return candidateName;
+                }
+            } catch (Exception e) {
+                // continue
+            }
+        }
+
+        throw new ResourceNotFoundException(
+                "No patient reference search parameter found for resource type: " + resourceType);
+    }
+
     // =========================================================================
     // Resource Key Generation and Reference Resolution Utilities
     // =========================================================================
@@ -599,7 +730,7 @@ public class EngineComponent implements IResourceProvider {
      * @param resource The FHIR resource
      * @return A unique key in format "ResourceType/id"
      */
-    private String resourceKey(Resource resource) {
+    public String resourceKey(Resource resource) {
         return resource.getResourceType().name() + "/" + resource.getIdElement().getIdPart();
     }
 
@@ -611,7 +742,7 @@ public class EngineComponent implements IResourceProvider {
      * @param requestDetails The request context
      * @return The resolved resource, or null if not found or reference is invalid
      */
-    private Resource readReference(Reference reference, RequestDetails requestDetails) {
+    public Resource readReference(Reference reference, RequestDetails requestDetails) {
         if (reference == null || !reference.hasReference()) {
             return null;
         }
@@ -699,7 +830,7 @@ public class EngineComponent implements IResourceProvider {
      * @param requestDetails The request context
      * @return The Encounter resource, or null if not found or not referenced
      */
-    private Encounter fetchAssociatedEncounter(Resource resource, RequestDetails requestDetails) {
+    public Encounter fetchAssociatedEncounter(Resource resource, RequestDetails requestDetails) {
         Reference encounterRef = extractEncounterReference(resource);
         if (encounterRef == null) {
             return null;
@@ -1076,6 +1207,44 @@ public class EngineComponent implements IResourceProvider {
      * @param requestDetails The request context
      * @param collected      The deduplication map (resourceType/id -> Resource)
      */
+    public void collectRelatedDocumentReferences(
+            Resource mainResource,
+            String patientId,
+            RequestDetails requestDetails,
+            Map<String, Resource> collected) {
+
+        if (mainResource == null) {
+            return;
+        }
+
+        List<Resource> documentResources = fetchDocumentContextByRevInclude(mainResource, requestDetails);
+        boolean hasDocumentReference = false;
+
+        for (Resource docRes : documentResources) {
+            if (docRes.getResourceType() == ResourceType.DocumentReference) {
+                collected.put(resourceKey(docRes), docRes);
+                hasDocumentReference = true;
+            }
+        }
+
+        if (!hasDocumentReference) {
+            String encounterId = null;
+            Encounter encounter = fetchAssociatedEncounter(mainResource, requestDetails);
+            if (encounter != null) {
+                encounterId = encounter.getIdElement().getIdPart();
+            }
+
+            List<Resource> docRefFallback = fetchRelatedDocumentReferencesFallback(
+                    mainResource, patientId, encounterId, requestDetails);
+
+            for (Resource docRef : docRefFallback) {
+                if (docRef.getResourceType() == ResourceType.DocumentReference) {
+                    collected.put(resourceKey(docRef), docRef);
+                }
+            }
+        }
+    }
+
     private void collectResourceGraph(
             Resource mainResource,
             String patientId,
