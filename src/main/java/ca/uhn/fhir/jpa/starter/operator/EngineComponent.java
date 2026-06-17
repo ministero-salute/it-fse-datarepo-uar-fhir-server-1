@@ -10,8 +10,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.time.LocalDate;
-import java.time.ZoneId;
 
 import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
@@ -20,15 +18,14 @@ import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.Coding;
 import org.hl7.fhir.r4.model.Composition;
 import org.hl7.fhir.r4.model.Condition;
+import org.hl7.fhir.r4.model.DateType;
 import org.hl7.fhir.r4.model.DiagnosticReport;
 import org.hl7.fhir.r4.model.DocumentReference;
 import org.hl7.fhir.r4.model.Encounter;
 import org.hl7.fhir.r4.model.IdType;
 import org.hl7.fhir.r4.model.Immunization;
-import org.hl7.fhir.r4.model.Medication;
 import org.hl7.fhir.r4.model.MedicationAdministration;
 import org.hl7.fhir.r4.model.MedicationRequest;
-import org.hl7.fhir.r4.model.MedicationStatement;
 import org.hl7.fhir.r4.model.Observation;
 import org.hl7.fhir.r4.model.OperationDefinition;
 import org.hl7.fhir.r4.model.Patient;
@@ -114,7 +111,20 @@ public class EngineComponent implements IResourceProvider {
     public Bundle getBundle(String codeOperation,
             String publisher,
             String patientIdentifierValue,
-            String patientIdentifierSystem, RequestDetails theRequestDetails) {
+            String patientIdentifierSystem, DateType dateFrom, DateType dateTo, RequestDetails theRequestDetails) {
+
+        // ********************************
+        // DATE RANGE
+        DateRangeParam dateRange = null;
+        if (dateFrom != null || dateTo != null) {
+            dateRange = new DateRangeParam();
+            if (dateFrom != null) {
+                dateRange.setLowerBound(new DateParam("ge" + dateFrom.getValueAsString()));
+            }
+            if (dateTo != null) {
+                dateRange.setUpperBound(new DateParam("le" + dateTo.getValueAsString()));
+            }
+        }
 
         // 1. Trova l'OperationDefinition per name + publisher
         OperationDefinition opDef = searchOperationDefinition(codeOperation, publisher);
@@ -148,14 +158,15 @@ public class EngineComponent implements IResourceProvider {
                 log.warn("Nessun ValueSet '{}' trovato nell'OperationDefinition. " +
                         "Fallback: recupero ultima risorsa tipo={} per patientId={}",
                         codeValueSetId, resourceType, patientId);
-                List<Resource> last = fetchLastResourceByPatient(resourceType, patientId, theRequestDetails, collected);
+                List<Resource> last = fetchLastResourceByPatient(resourceType, patientId, dateRange, theRequestDetails,
+                        collected);
                 if (last != null && !last.isEmpty()) {
                     log.info("Found last resource for type {}", resourceType);
                 }
                 continue;
             }
 
-            List<Resource> resources = fetchResourcesByCodesAndPatient(resourceType, patientId, codes,
+            List<Resource> resources = fetchResourcesByCodesAndPatient(resourceType, patientId, codes, dateRange,
                     theRequestDetails, collected);
             log.info("Recuperate {} risorse di tipo {} per patientId={} (codici filtrati={})",
                     resources.size(), resourceType, patientId, codes.size());
@@ -208,12 +219,19 @@ public class EngineComponent implements IResourceProvider {
     public List<Resource> fetchLastResourceByPatient(
             String resourceType,
             String patientId,
+            DateRangeParam dateRange,
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
+
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
 
         SearchParameterMap params = new SearchParameterMap();
         params.add("patient", new ReferenceParam("Patient/" + patientId));
+
+        String dateSearchParam = resolveDateSearchParam(resourceType);
+        if (dateRange != null && dateSearchParam != null) {
+            params.add(dateSearchParam, dateRange);
+        }
 
         String sortParam = resolveDateSearchParam(resourceType);
         if (sortParam != null) {
@@ -235,6 +253,7 @@ public class EngineComponent implements IResourceProvider {
             }
             return output;
         }
+
         return null;
     }
 
@@ -316,54 +335,15 @@ public class EngineComponent implements IResourceProvider {
         return out;
     }
 
-
     // =========================================================================
     // Fetch risorse per codici + patient (generico per qualsiasi resourceType)
     // =========================================================================
 
-    /**
-     * Esegue la search del resourceType indicato filtrando per Patient e per
-     * la OR-list di codici. Il search parameter usato per i codici è "code"
-     * di default; le eccezioni sono dichiarate in CODE_SEARCH_PARAM_BY_TYPE.
-     */
-    // public List<Resource> fetchResourcesByCodesAndPatient(String resourceType,
-    // String patientId,
-    // List<Coding> codes, RequestDetails theRequestDetails) {
-    // IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
-    // String codeSearchParam = CODE_SEARCH_PARAM_BY_TYPE.getOrDefault(resourceType,
-    // "code");
-    //
-    // SearchParameterMap params = new SearchParameterMap();
-    // params.add("patient", new ReferenceParam("Patient/" + patientId));
-    //
-    // TokenOrListParam codeOrList = new TokenOrListParam();
-    // for (Coding coding : codes) {
-    // codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
-    // }
-    // params.add(codeSearchParam, codeOrList);
-    // params.setCount(1000);
-    //
-    // IBundleProvider results = dao.search(params,theRequestDetails);
-    //
-    // List<Resource> out = new ArrayList<>();
-    // int fromIndex = 0;
-    // int pageSize = 100;
-    //
-    // while (true) {
-    // List<IBaseResource> page = results.getResources(fromIndex, fromIndex +
-    // pageSize);
-    // if (page == null || page.isEmpty())
-    // break;
-    // page.forEach(r -> out.add((Resource) r));
-    // fromIndex += pageSize;
-    // }
-    //
-    // return out;
-    // }
-
-    public List<Resource> fetchResourcesByCodesAndPatient(String resourceType,
+    public List<Resource> fetchResourcesByCodesAndPatient(
+            String resourceType,
             String patientId,
             List<Coding> codes,
+            DateRangeParam dateRange,
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
 
@@ -372,8 +352,6 @@ public class EngineComponent implements IResourceProvider {
         SearchParameterMap params = new SearchParameterMap();
         params.add("patient", new ReferenceParam("Patient/" + patientId));
 
-        // Risoluzione dinamica del search param per i codici usando la nuova strategia
-        // a due livelli
         String codeSearchParam = resolveCanonicalCodeSearchParam(resourceType);
         if (codeSearchParam == null) {
             codeSearchParam = resolveResourceSpecificCodeSearchParam(resourceType);
@@ -381,18 +359,35 @@ public class EngineComponent implements IResourceProvider {
 
         if (codeSearchParam == null) {
             log.warn("No code search parameter found for {}. Searching by patient only.", resourceType);
-            // Continue with patient-only search
         } else if (codes != null && !codes.isEmpty()) {
             TokenOrListParam codeOrList = new TokenOrListParam();
             for (Coding coding : codes) {
                 codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
             }
             params.add(codeSearchParam, codeOrList);
-            log.info("Ricerca resourceType='{}' con search param='{}', {} codici",
-                    resourceType, codeSearchParam, codes.size());
+            log.info("Ricerca {} con search param '{}' e {} codici", resourceType, codeSearchParam, codes.size());
+        }
+
+        String dateSearchParam = resolveDateSearchParam(resourceType);
+        if (dateRange != null && dateSearchParam != null) {
+            params.add(dateSearchParam, dateRange);
+            String lowerBoundStr = dateRange != null && dateRange.getLowerBound() != null
+                    ? dateRange.getLowerBound().getValueAsString()
+                    : null;
+
+            String upperBoundStr = dateRange != null && dateRange.getUpperBound() != null
+                    ? dateRange.getUpperBound().getValueAsString()
+                    : null;
+
+            log.info("Applicato filtro date {} su {}: from={}, to={}",
+                    dateSearchParam,
+                    resourceType,
+                    lowerBoundStr,
+                    upperBoundStr);
         }
 
         params.setCount(1000);
+
         IBundleProvider results = dao.search(params, theRequestDetails);
 
         List<Resource> out = new ArrayList<>();
@@ -400,11 +395,11 @@ public class EngineComponent implements IResourceProvider {
         int pageSize = 100;
         int maxResults = 1000;
 
-        // Collect all resources with enrichment
         while (true) {
             List<IBaseResource> page = results.getResources(fromIndex, fromIndex + pageSize);
-            if (page == null || page.isEmpty())
+            if (page == null || page.isEmpty()) {
                 break;
+            }
 
             for (IBaseResource res : page) {
                 if (res instanceof Resource) {
