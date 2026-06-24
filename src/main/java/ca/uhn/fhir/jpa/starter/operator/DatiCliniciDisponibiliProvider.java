@@ -1,9 +1,11 @@
 package ca.uhn.fhir.jpa.starter.operator;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.hl7.fhir.instance.model.api.IBaseResource;
 import org.hl7.fhir.instance.model.api.IIdType;
 import org.hl7.fhir.r4.model.AllergyIntolerance;
 import org.hl7.fhir.r4.model.Bundle;
@@ -161,11 +163,14 @@ public class DatiCliniciDisponibiliProvider {
         return bundle;
     }
 
-    private List<? extends Resource> searchResourceWithRevinclude(
+    private List<Resource> searchResourceWithRevinclude(
             String resourceTypeName,
             IIdType patientId,
             DateRangeParam dateRange,
             RequestDetails requestDetails) {
+
+        System.out.println("Cerco risorse per dati clinici disponibili per tipo " + resourceTypeName
+                + " e per paziente con id " + patientId);
 
         IFhirResourceDao<?> dao = getDaoForResourceType(resourceTypeName);
 
@@ -177,13 +182,38 @@ public class DatiCliniciDisponibiliProvider {
 
         map.addRevInclude(new Include("Composition:entry"));
         map.addRevInclude(new Include("DocumentReference:related", true));
+        map.setLoadSynchronous(true);
 
         IBundleProvider results = dao.search(map, requestDetails);
 
-        return results.getResources(0, Integer.MAX_VALUE).stream()
-                .filter(r -> r instanceof Resource)
-                .map(r -> (Resource) r)
-                .toList();
+        List<Resource> collected = new ArrayList<>();
+        int from = 0;
+        int pageSize = 200;
+
+        while (true) {
+            List<IBaseResource> page = results.getResources(from, from + pageSize);
+
+            if (page == null || page.isEmpty()) {
+                break;
+            }
+
+            page.stream()
+                    .filter(Resource.class::isInstance)
+                    .map(Resource.class::cast)
+                    .forEach(collected::add);
+
+            System.out.println("Recuperato blocco da " + page.size() + " risorse per " + resourceTypeName);
+
+            if (page.size() < pageSize) {
+                break;
+            }
+
+            from += pageSize;
+        }
+
+        System.out.println("Totale risorse recuperate per " + resourceTypeName + ": " + collected.size());
+
+        return collected;
     }
 
     private IFhirResourceDao<?> getDaoForResourceType(String resourceTypeName) {

@@ -223,7 +223,12 @@ public class EngineComponent implements IResourceProvider {
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
 
-        log.info("INIZIO ricerca ultime risorse di tipo {} ....", resourceType);
+        int numberOfResourceSearched = 10;
+        if (resourceType.equals("Observation")) {
+            numberOfResourceSearched = 1;
+        }
+
+        log.info("INIZIO ricerca ultime {} risorse di tipo {} ....", numberOfResourceSearched, resourceType);
 
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
 
@@ -242,7 +247,7 @@ public class EngineComponent implements IResourceProvider {
             params.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
         }
 
-        params.setCount(10);
+        params.setCount(numberOfResourceSearched);
 
         IBundleProvider results = dao.search(params, theRequestDetails);
 
@@ -353,7 +358,13 @@ public class EngineComponent implements IResourceProvider {
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
 
-                log.info("INIZIO ricerca ultime risorse di tipo {} con codici specifici....", resourceType);
+        int numberOfResourceSearched = 100;
+        if (resourceType.equals("Observation")) {
+            numberOfResourceSearched = 1;
+        }
+
+        log.info("INIZIO ricerca ultime {} risorse di tipo {} con codici specifici....", numberOfResourceSearched,
+                resourceType);
 
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
 
@@ -394,7 +405,7 @@ public class EngineComponent implements IResourceProvider {
                     upperBoundStr);
         }
 
-        params.setCount(1000);
+        params.setCount(numberOfResourceSearched);
 
         IBundleProvider results = dao.search(params, theRequestDetails);
 
