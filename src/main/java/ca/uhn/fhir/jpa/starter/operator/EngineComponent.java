@@ -169,7 +169,7 @@ public class EngineComponent implements IResourceProvider {
             List<Resource> resources = new ArrayList<>();
             for (Coding code : codes) {
                 resources.addAll(fetchResourcesByCodesAndPatient(resourceType, patientId, List.of(code), dateRange,
-                    theRequestDetails, collected));
+                        theRequestDetails, collected));
             }
             log.info("Recuperate {} risorse di tipo {} per patientId={} (codici filtrati={})",
                     resources.size(), resourceType, patientId, codes.size());
@@ -231,7 +231,7 @@ public class EngineComponent implements IResourceProvider {
             numberOfResourceSearched = 1;
         }
 
-        log.info("INIZIO ricerca ultime {} risorse di tipo {} ....", numberOfResourceSearched, resourceType);
+        log.info("INIZIO ricerca ultime {} risorse di tipo {}....", numberOfResourceSearched, resourceType);
 
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
 
@@ -250,25 +250,44 @@ public class EngineComponent implements IResourceProvider {
             params.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
         }
 
-        if (resourceType.equals("Observation")) {
-            params.setCount(1);
-        }
+        params.setCount(numberOfResourceSearched);
 
         IBundleProvider results = dao.search(params, theRequestDetails);
 
-        if (results.size() != null && results.size() > 0) {
-            log.info("Per la risorsa di tipo {} sono state ritrovate {} risultati", resourceType, results.size());
-            List<Resource> output = new ArrayList<>();
-            for (IBaseResource baseResource : results.getAllResources()) {
-                Resource resource = (Resource) baseResource;
-                collectResourceGraph(resource, patientId, theRequestDetails, collected);
-                output.add(resource);
+        List<Resource> output = new ArrayList<>();
+        int fromIndex = 0;
+        int pageSize = resourceType.equals("Observation") ? 1 : Math.min(100, numberOfResourceSearched);
+        int maxResults = numberOfResourceSearched;
+
+        while (true) {
+            int toIndex = fromIndex + pageSize;
+            List<IBaseResource> page = results.getResources(fromIndex, toIndex);
+
+            if (page == null || page.isEmpty()) {
+                break;
             }
+
+            for (IBaseResource baseResource : page) {
+                if (baseResource instanceof Resource resource) {
+                    collectResourceGraph(resource, patientId, theRequestDetails, collected);
+                    output.add(resource);
+
+                    if (output.size() >= maxResults) {
+                        log.info("Raggiunto limite massimo di {} risorse per tipo {}", maxResults, resourceType);
+                        return output;
+                    }
+                }
+            }
+
+            fromIndex += pageSize;
+        }
+
+        if (!output.isEmpty()) {
+            log.info("Per la risorsa di tipo {} sono state ritrovate {} risultati", resourceType, output.size());
             return output;
         }
 
         log.info("FINE ricerca risorse di tipo {}", resourceType);
-
         return null;
     }
 
