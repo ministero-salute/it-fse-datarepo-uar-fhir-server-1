@@ -166,8 +166,11 @@ public class EngineComponent implements IResourceProvider {
                 continue;
             }
 
-            List<Resource> resources = fetchResourcesByCodesAndPatient(resourceType, patientId, codes, dateRange,
-                    theRequestDetails, collected);
+            List<Resource> resources = new ArrayList<>();
+            for (Coding code : codes) {
+                resources.addAll(fetchResourcesByCodesAndPatient(resourceType, patientId, List.of(code), dateRange,
+                    theRequestDetails, collected));
+            }
             log.info("Recuperate {} risorse di tipo {} per patientId={} (codici filtrati={})",
                     resources.size(), resourceType, patientId, codes.size());
         }
@@ -247,13 +250,14 @@ public class EngineComponent implements IResourceProvider {
             params.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
         }
 
-        params.setCount(numberOfResourceSearched);
+        if (resourceType.equals("Observation")) {
+            params.setCount(1);
+        }
 
         IBundleProvider results = dao.search(params, theRequestDetails);
 
-        log.info("Per la risorsa di tipo {} sono state ritrovate {} risultati", resourceType, results.size());
-
         if (results.size() != null && results.size() > 0) {
+            log.info("Per la risorsa di tipo {} sono state ritrovate {} risultati", resourceType, results.size());
             List<Resource> output = new ArrayList<>();
             for (IBaseResource baseResource : results.getAllResources()) {
                 Resource resource = (Resource) baseResource;
@@ -405,7 +409,9 @@ public class EngineComponent implements IResourceProvider {
                     upperBoundStr);
         }
 
-        params.setCount(numberOfResourceSearched);
+        if (resourceType.equals("Observation")) {
+            params.setCount(1);
+        }
 
         IBundleProvider results = dao.search(params, theRequestDetails);
 
@@ -413,6 +419,23 @@ public class EngineComponent implements IResourceProvider {
         int fromIndex = 0;
         int pageSize = 100;
         int maxResults = 1000;
+
+        if (resourceType.equals("Observation")) {
+            List<IBaseResource> page = results.getResources(0, 1);
+            if (page == null || page.isEmpty()) {
+                return out;
+            }
+
+            for (IBaseResource res : page) {
+                if (res instanceof Resource) {
+                    Resource resource = (Resource) res;
+                    collectResourceGraph(resource, patientId, theRequestDetails, collected);
+                    out.add(resource);
+                }
+            }
+
+            return out;
+        }
 
         while (true) {
             List<IBaseResource> page = results.getResources(fromIndex, fromIndex + pageSize);
