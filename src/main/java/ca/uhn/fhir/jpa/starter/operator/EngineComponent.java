@@ -223,6 +223,8 @@ public class EngineComponent implements IResourceProvider {
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
 
+        log.info("INIZIO ricerca ultime risorse di tipo {} ....", resourceType);
+
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
 
         SearchParameterMap params = new SearchParameterMap();
@@ -244,6 +246,8 @@ public class EngineComponent implements IResourceProvider {
 
         IBundleProvider results = dao.search(params, theRequestDetails);
 
+        log.info("Per la risorsa di tipo {} sono state ritrovate {} risultati", resourceType, results.size());
+
         if (results.size() != null && results.size() > 0) {
             List<Resource> output = new ArrayList<>();
             for (IBaseResource baseResource : results.getAllResources()) {
@@ -253,6 +257,8 @@ public class EngineComponent implements IResourceProvider {
             }
             return output;
         }
+
+        log.info("FINE ricerca risorse di tipo {}", resourceType);
 
         return null;
     }
@@ -347,6 +353,8 @@ public class EngineComponent implements IResourceProvider {
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
 
+                log.info("INIZIO ricerca ultime risorse di tipo {} con codici specifici....", resourceType);
+
         IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
 
         SearchParameterMap params = new SearchParameterMap();
@@ -416,6 +424,8 @@ public class EngineComponent implements IResourceProvider {
                 break;
             }
         }
+
+        log.info("FINE ricerca ultime risorse di tipo {} ....", resourceType);
 
         return out;
     }
