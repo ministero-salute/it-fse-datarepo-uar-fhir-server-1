@@ -29,6 +29,8 @@ import ca.uhn.fhir.jpa.searchparam.SearchParameterMap;
 import ca.uhn.fhir.model.api.Include;
 import ca.uhn.fhir.rest.annotation.Operation;
 import ca.uhn.fhir.rest.annotation.OperationParam;
+import ca.uhn.fhir.rest.api.SortOrderEnum;
+import ca.uhn.fhir.rest.api.SortSpec;
 import ca.uhn.fhir.rest.api.server.IBundleProvider;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
 import ca.uhn.fhir.rest.param.DateParam;
@@ -183,6 +185,7 @@ public class DatiCliniciDisponibiliProvider {
         map.addRevInclude(new Include("Composition:entry"));
         map.addRevInclude(new Include("DocumentReference:related", true));
         map.setLoadSynchronous(true);
+        map.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
 
         IBundleProvider results = dao.search(map, requestDetails);
 
