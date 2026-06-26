@@ -175,43 +175,39 @@ public class DatiCliniciDisponibiliProvider {
                 + " e per paziente con id " + patientId);
 
         IFhirResourceDao<?> dao = getDaoForResourceType(resourceTypeName);
-
-        SearchParameterMap map = buildBaseMap(
-                getPatientSPForResourceType(resourceTypeName),
-                patientId,
-                getDateSPForResourceType(resourceTypeName),
-                dateRange);
-
-        map.addRevInclude(new Include("Composition:entry"));
-        map.addRevInclude(new Include("DocumentReference:related", true));
-        map.setLoadSynchronous(true);
-        map.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
-
-        IBundleProvider results = dao.search(map, requestDetails);
-
         List<Resource> collected = new ArrayList<>();
-        int from = 0;
-        int pageSize = 200;
+
+        int count = 10;
+        int offset = 0;
 
         while (true) {
-            List<IBaseResource> page = results.getResources(from, from + pageSize);
+            SearchParameterMap map = buildBaseMap(
+                    getPatientSPForResourceType(resourceTypeName),
+                    patientId,
+                    getDateSPForResourceType(resourceTypeName),
+                    dateRange);
 
-            if (page == null || page.isEmpty()) {
+            map.addRevInclude(new Include("Composition:entry"));
+            map.addRevInclude(new Include("DocumentReference:related", true));
+            map.setLoadSynchronous(true);
+            map.setSort(new SortSpec("_lastUpdated", SortOrderEnum.DESC));
+            map.setCount(count);
+            map.setOffset(offset);
+
+            IBundleProvider results = dao.search(map, requestDetails);
+            List<IBaseResource> page = results.getResources(0, Integer.MAX_VALUE);
+
+            if (page == null || page.isEmpty())
                 break;
-            }
 
             page.stream()
                     .filter(Resource.class::isInstance)
                     .map(Resource.class::cast)
                     .forEach(collected::add);
 
-            System.out.println("Recuperato blocco da " + page.size() + " risorse per " + resourceTypeName);
-
-            if (page.size() < pageSize) {
+            if (page.size() < count)
                 break;
-            }
-
-            from += pageSize;
+            offset += count;
         }
 
         System.out.println("Totale risorse recuperate per " + resourceTypeName + ": " + collected.size());
