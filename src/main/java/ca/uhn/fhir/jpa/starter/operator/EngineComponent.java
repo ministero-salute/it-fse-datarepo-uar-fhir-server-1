@@ -85,10 +85,6 @@ public class EngineComponent implements IResourceProvider {
         return DATE_SORT_PARAMS.get(resourceType);
     }
 
-    private static final List<String> CODE_PARAM_CANDIDATES = List.of(
-            "code", "vaccine-code", "type", "category", "modality", "morphology",
-            "reason-code", "medication", "finding-code");
-
     private static final Logger log = LoggerFactory.getLogger(EngineComponent.class);
 
     /** ID del ValueSet contained che elenca i resourceType da recuperare. */
@@ -226,7 +222,7 @@ public class EngineComponent implements IResourceProvider {
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
 
-        int numberOfResourceSearched = 10;
+        int numberOfResourceSearched = 13;
         if (resourceType.equals("Observation")) {
             numberOfResourceSearched = 1;
         }
@@ -291,84 +287,6 @@ public class EngineComponent implements IResourceProvider {
         return null;
     }
 
-    public List<Resource> fetchResources(
-            String resourceType,
-            String patientId,
-            List<Coding> codes,
-            DateRangeParam dateRange,
-            RequestDetails theRequestDetails,
-            Map<String, Resource> collected,
-            boolean includeGraph) {
-
-        IFhirResourceDao<?> dao = daoRegistry.getResourceDao(resourceType);
-
-        SearchParameterMap params = new SearchParameterMap();
-        String patientSearchParam = resolvePatientReferenceSearchParam(resourceType);
-        params.add(patientSearchParam, new ReferenceParam("Patient/" + patientId));
-
-        if (dateRange != null) {
-            String dateSearchParam = resolveDateSearchParam(resourceType);
-            if (dateSearchParam != null) {
-                params.add(dateSearchParam, dateRange);
-            } else {
-                log.warn("No date search parameter found for {}. Date filter skipped.", resourceType);
-            }
-        }
-
-        String codeSearchParam = null;
-        if (codes != null && !codes.isEmpty()) {
-            codeSearchParam = resolveCanonicalCodeSearchParam(resourceType);
-            if (codeSearchParam == null) {
-                codeSearchParam = resolveResourceSpecificCodeSearchParam(resourceType);
-            }
-
-            if (codeSearchParam == null) {
-                log.warn("No code search parameter found for {}. Code filter skipped.", resourceType);
-            } else {
-                TokenOrListParam codeOrList = new TokenOrListParam();
-                for (Coding coding : codes) {
-                    codeOrList.addOr(new TokenParam(coding.getSystem(), coding.getCode()));
-                }
-                params.add(codeSearchParam, codeOrList);
-            }
-        }
-
-        params.setCount(1000);
-        IBundleProvider results = dao.search(params, theRequestDetails);
-
-        List<Resource> out = new ArrayList<>();
-        int fromIndex = 0;
-        int pageSize = 100;
-        int maxResults = 1000;
-
-        while (true) {
-            List<IBaseResource> page = results.getResources(fromIndex, fromIndex + pageSize);
-            if (page == null || page.isEmpty()) {
-                break;
-            }
-
-            for (IBaseResource res : page) {
-                if (res instanceof Resource) {
-                    Resource resource = (Resource) res;
-                    if (includeGraph) {
-                        collectResourceGraph(resource, patientId, theRequestDetails, collected);
-                    } else {
-                        collected.put(resourceKey(resource), resource);
-                    }
-                    out.add(resource);
-                }
-            }
-
-            fromIndex += pageSize;
-            if (out.size() >= maxResults) {
-                log.info("Reached maximum of {} resources for type {}", maxResults, resourceType);
-                break;
-            }
-        }
-
-        return out;
-    }
-
     // =========================================================================
     // Fetch risorse per codici + patient (generico per qualsiasi resourceType)
     // =========================================================================
@@ -381,7 +299,7 @@ public class EngineComponent implements IResourceProvider {
             RequestDetails theRequestDetails,
             Map<String, Resource> collected) {
 
-        int numberOfResourceSearched = 100;
+        int numberOfResourceSearched = 13;
         if (resourceType.equals("Observation")) {
             numberOfResourceSearched = 1;
         }
@@ -1005,7 +923,7 @@ public class EngineComponent implements IResourceProvider {
      * @return List of document resources (Composition, DocumentReference),
      *         excluding the main resource itself
      */
-    private List<Resource> fetchDocumentContextByRevInclude(
+    private List<Resource> fetchDocumentContextByInclude(
             Resource mainResource,
             RequestDetails requestDetails) {
 
@@ -1035,6 +953,10 @@ public class EngineComponent implements IResourceProvider {
             docRefInclude.setRecurse(true);
             params.addRevInclude(docRefInclude);
 
+            // Add include for Composition:Author -> Medico
+            params.addInclude(new Include("Composition:author", true));
+            params.addInclude(new Include("PractitionerRole:practitioner", true));
+
             // Set reasonable limit
             params.setCount(200);
 
@@ -1057,8 +979,7 @@ public class EngineComponent implements IResourceProvider {
                 allResources.addAll(bundleProvider.getResources(0, 200));
             }
 
-            // Filter out the main resource and collect only Composition and
-            // DocumentReference
+            // Filter out the main resource and collect others
             String mainResourceKey = resourceKey(mainResource);
             for (IBaseResource res : allResources) {
                 if (res instanceof Resource) {
@@ -1069,12 +990,7 @@ public class EngineComponent implements IResourceProvider {
                     if (key.equals(mainResourceKey)) {
                         continue;
                     }
-
-                    // Only include Composition and DocumentReference
-                    if (resource.getResourceType() == ResourceType.Composition ||
-                            resource.getResourceType() == ResourceType.DocumentReference) {
-                        documentResources.add(resource);
-                    }
+                    documentResources.add(resource);
                 }
             }
 
@@ -1250,59 +1166,6 @@ public class EngineComponent implements IResourceProvider {
         return documentReferences;
     }
 
-    /**
-     * Collects a complete resource graph for a main clinical resource.
-     * This method enriches the main resource with:
-     * - Document context (Composition, DocumentReference) via _revinclude and
-     * fallback
-     * - Encounter context (Encounter, Location, Organization, Practitioner,
-     * PractitionerRole)
-     *
-     * All resources are deduplicated using the provided collection map.
-     *
-     * @param mainResource   The main clinical resource to enrich
-     * @param patientId      The patient ID
-     * @param requestDetails The request context
-     * @param collected      The deduplication map (resourceType/id -> Resource)
-     */
-    public void collectRelatedDocumentReferences(
-            Resource mainResource,
-            String patientId,
-            RequestDetails requestDetails,
-            Map<String, Resource> collected) {
-
-        if (mainResource == null) {
-            return;
-        }
-
-        List<Resource> documentResources = fetchDocumentContextByRevInclude(mainResource, requestDetails);
-        boolean hasDocumentReference = false;
-
-        for (Resource docRes : documentResources) {
-            if (docRes.getResourceType() == ResourceType.DocumentReference) {
-                collected.put(resourceKey(docRes), docRes);
-                hasDocumentReference = true;
-            }
-        }
-
-        if (!hasDocumentReference) {
-            String encounterId = null;
-            Encounter encounter = fetchAssociatedEncounter(mainResource, requestDetails);
-            if (encounter != null) {
-                encounterId = encounter.getIdElement().getIdPart();
-            }
-
-            List<Resource> docRefFallback = fetchRelatedDocumentReferencesFallback(
-                    mainResource, patientId, encounterId, requestDetails);
-
-            for (Resource docRef : docRefFallback) {
-                if (docRef.getResourceType() == ResourceType.DocumentReference) {
-                    collected.put(resourceKey(docRef), docRef);
-                }
-            }
-        }
-    }
-
     private void collectResourceGraph(
             Resource mainResource,
             String patientId,
@@ -1313,6 +1176,15 @@ public class EngineComponent implements IResourceProvider {
             return;
         }
 
+        // Se la risorsa è una Procedure non metterla se non ha il code
+        if (mainResource.getResourceType() == ResourceType.Procedure) {
+            Procedure procedure = (Procedure) mainResource;
+            if (!procedure.hasCode()) {
+                log.warn("Found PROCEDURE without code. It was filtered.");
+                return;
+            }
+        }
+
         // Add the main resource first
         String mainKey = resourceKey(mainResource);
         collected.put(mainKey, mainResource);
@@ -1320,7 +1192,7 @@ public class EngineComponent implements IResourceProvider {
         log.debug("Collecting resource graph for {}", mainKey);
 
         // Step 1: Fetch document context via _revinclude
-        List<Resource> documentResources = fetchDocumentContextByRevInclude(mainResource, requestDetails);
+        List<Resource> documentResources = fetchDocumentContextByInclude(mainResource, requestDetails);
 
         // Track what we found via _revinclude
         boolean hasComposition = false;
