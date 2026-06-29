@@ -85,6 +85,23 @@ public class EngineComponent implements IResourceProvider {
         return DATE_SORT_PARAMS.get(resourceType);
     }
 
+    public String resolveEncounterIncludeSearchParam(String resourceType) {
+        Map<String, String> explicitMappings = new HashMap<>();
+        explicitMappings.put("Observation", "encounter");
+        explicitMappings.put("Condition", "encounter");
+        explicitMappings.put("Procedure", "encounter");
+        explicitMappings.put("DiagnosticReport", "encounter");
+        explicitMappings.put("Immunization", "encounter");
+        explicitMappings.put("MedicationRequest", "encounter");
+        explicitMappings.put("MedicationAdministration", "context");
+        explicitMappings.put("AllergyIntolerance", "encounter");
+        explicitMappings.put("Composition", "encounter");
+        explicitMappings.put("DocumentReference", "context");
+
+        String explicitParam = explicitMappings.get(resourceType);
+        return explicitParam;
+    }
+
     private static final Logger log = LoggerFactory.getLogger(EngineComponent.class);
 
     /** ID del ValueSet contained che elenca i resourceType da recuperare. */
@@ -952,6 +969,13 @@ public class EngineComponent implements IResourceProvider {
             Include docRefInclude = new Include("DocumentReference:related");
             docRefInclude.setRecurse(true);
             params.addRevInclude(docRefInclude);
+
+            String encounterIncludeParam = resolveEncounterIncludeSearchParam(resourceType);
+            if (encounterIncludeParam != null) {
+                params.addInclude(new Include(resourceType + ":" + encounterIncludeParam));
+            }
+            params.addInclude(new Include("Encounter:location", true));
+            params.addInclude(new Include("Location:organization", true));
 
             // Add include for Composition:Author -> Medico
             params.addInclude(new Include("Composition:author", true));
