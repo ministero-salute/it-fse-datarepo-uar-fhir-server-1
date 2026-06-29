@@ -91,12 +91,9 @@ public class EngineComponent implements IResourceProvider {
         explicitMappings.put("Condition", "encounter");
         explicitMappings.put("Procedure", "encounter");
         explicitMappings.put("DiagnosticReport", "encounter");
-        explicitMappings.put("Immunization", "encounter");
         explicitMappings.put("MedicationRequest", "encounter");
         explicitMappings.put("MedicationAdministration", "context");
         explicitMappings.put("AllergyIntolerance", "encounter");
-        explicitMappings.put("Composition", "encounter");
-        explicitMappings.put("DocumentReference", "context");
 
         String explicitParam = explicitMappings.get(resourceType);
         return explicitParam;
@@ -976,6 +973,9 @@ public class EngineComponent implements IResourceProvider {
             }
             params.addInclude(new Include("Encounter:location", true));
             params.addInclude(new Include("Location:organization", true));
+            if (mainResource.getResourceType() == ResourceType.Immunization) {
+                params.addInclude(new Include("Immunization:location"));
+            }
 
             // Add include for Composition:Author -> Medico
             params.addInclude(new Include("Composition:author", true));
@@ -1018,7 +1018,7 @@ public class EngineComponent implements IResourceProvider {
                 }
             }
 
-            log.debug("Fetched {} document resources via _revinclude for {}/{}",
+            log.info("Fetched {} document resources via _revinclude for {}/{}",
                     documentResources.size(), resourceType, resourceId);
 
         } catch (Exception e) {
@@ -1233,7 +1233,7 @@ public class EngineComponent implements IResourceProvider {
             }
         }
 
-        log.debug("Found {} document resources via _revinclude (Composition: {}, DocumentReference: {})",
+        log.info("Found {} document resources via _revinclude (Composition: {}, DocumentReference: {})",
                 documentResources.size(), hasComposition, hasDocumentReference);
 
         // Step 2: Extract encounter ID for fallback and context retrieval
@@ -1245,7 +1245,7 @@ public class EngineComponent implements IResourceProvider {
 
         // Step 3: Apply fallbacks if _revinclude didn't return sufficient results
         if (!hasComposition) {
-            log.debug("No Composition found via _revinclude, trying fallback");
+            log.info("No Composition found via _revinclude, trying fallback");
             List<Resource> compositionFallback = fetchRelatedCompositionsFallback(
                     mainResource, patientId, encounterId, requestDetails);
 
@@ -1254,11 +1254,11 @@ public class EngineComponent implements IResourceProvider {
                 collected.put(key, comp);
             }
 
-            log.debug("Fallback found {} Composition resources", compositionFallback.size());
+            log.info("Fallback found {} Composition resources", compositionFallback.size());
         }
 
         if (!hasDocumentReference) {
-            log.debug("No DocumentReference found via _revinclude, trying fallback");
+            log.info("No DocumentReference found via _revinclude, trying fallback");
             List<Resource> docRefFallback = fetchRelatedDocumentReferencesFallback(
                     mainResource, patientId, encounterId, requestDetails);
 
@@ -1267,13 +1267,13 @@ public class EngineComponent implements IResourceProvider {
                 collected.put(key, docRef);
             }
 
-            log.debug("Fallback found {} DocumentReference resources", docRefFallback.size());
+            log.info("Fallback found {} DocumentReference resources", docRefFallback.size());
         }
 
         // Step 4: Fetch encounter context (Encounter, Location, Organization,
         // Practitioner, PractitionerRole)
         if (encounter != null) {
-            log.debug("Fetching encounter context for Encounter/{}", encounterId);
+            log.info("Fetching encounter context for Encounter/{}", encounterId);
             List<Resource> encounterContext = fetchEncounterContext(encounter, requestDetails);
 
             for (Resource contextRes : encounterContext) {
@@ -1281,9 +1281,9 @@ public class EngineComponent implements IResourceProvider {
                 collected.put(key, contextRes);
             }
 
-            log.debug("Added {} encounter context resources", encounterContext.size());
+            log.info("Added {} encounter context resources", encounterContext.size());
         } else {
-            log.debug("No encounter associated with {}, skipping encounter context", mainKey);
+            log.info("No encounter associated with {}, skipping encounter context", mainKey);
         }
 
         log.debug("Resource graph collection complete for {}. Total resources: {}",
