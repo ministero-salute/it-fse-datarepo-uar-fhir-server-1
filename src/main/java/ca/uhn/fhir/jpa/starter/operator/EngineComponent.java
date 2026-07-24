@@ -34,6 +34,7 @@ import org.hl7.fhir.r4.model.Procedure;
 import org.hl7.fhir.r4.model.Reference;
 import org.hl7.fhir.r4.model.Resource;
 import org.hl7.fhir.r4.model.ResourceType;
+import org.hl7.fhir.r4.model.StringType;
 import org.hl7.fhir.r4.model.ValueSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -121,7 +122,7 @@ public class EngineComponent implements IResourceProvider {
     public Bundle getBundle(String codeOperation,
             String publisher,
             String patientIdentifierValue,
-            String patientIdentifierSystem, DateType dateFrom, DateType dateTo, RequestDetails theRequestDetails) {
+            String patientIdentifierSystem, DateType dateFrom, DateType dateTo, StringType op, RequestDetails theRequestDetails) {
 
         // ********************************
         // DATE RANGE
@@ -137,7 +138,27 @@ public class EngineComponent implements IResourceProvider {
         }
 
         // 1. Trova l'OperationDefinition per name + publisher
-        OperationDefinition opDef = searchOperationDefinition(codeOperation, publisher);
+        OperationDefinition opDef = null;
+        if (op == null || op.getValue() == null) {
+            opDef = searchOperationDefinition(codeOperation, publisher);
+        } else {
+            String rawJson = op.getValue();
+            
+            // LOG DI DEBUG: Controlliamo se la stringa è intera o troncata!
+            log.info("Ricevuto JSON (lunghezza: {}): \n{}", rawJson.length(), rawJson);
+
+            // Pulizia preventiva degli spazi NBSP (invisibili) in spazi normali
+            rawJson = rawJson.replace('\u00A0', ' ');
+
+            try {
+                opDef = theRequestDetails.getFhirContext()
+                        .newJsonParser()
+                        .parseResource(OperationDefinition.class, rawJson);
+            } catch (Exception e) {
+                log.error("Errore durante il parsing. Il JSON potrebbe essere troncato.", e);
+                throw e; // o gestisci l'errore
+            }
+        }
 
         // 2. Estrai la lista di resourceType dal ValueSet contained "vs-resource-types"
         List<String> resourceTypes = estraiCodesFromValueSetContained(opDef, RESOURCE_TYPES_VALUESET_ID);

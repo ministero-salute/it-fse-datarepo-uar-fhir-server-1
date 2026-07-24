@@ -25,6 +25,7 @@ public class PacchettoProvider {
             @OperationParam(name = "patientSystem") StringType patientSystem,
             @OperationParam(name = "dateFrom", min = 0) DateType dateFrom,
             @OperationParam(name = "dateTo", min = 0) DateType dateTo,
+            @OperationParam(name = "operationDefinition", min = 0) StringType op,
             RequestDetails requestDetails) {
 
         if (code == null || publisher == null) {
@@ -43,6 +44,7 @@ public class PacchettoProvider {
                 null,
                 dateFrom,
                 dateTo,
+                op,
                 requestDetails);
     }
 
