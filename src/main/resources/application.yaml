@@ -11,7 +11,7 @@ management:
     enabled-by-default: false
     web:
       exposure:
-        include: 'health' # or e.g. 'info,health,prometheus,metrics' or '*' for all'
+        include: "health" # or e.g. 'info,health,prometheus,metrics' or '*' for all'
   endpoint:
     info:
       enabled: true
@@ -59,14 +59,14 @@ spring:
       #If using H2, then supply the value of ca.uhn.fhir.jpa.model.dialect.HapiFhirH2Dialect
       #If using postgres, then supply the value of ca.uhn.fhir.jpa.model.dialect.HapiFhirPostgresDialect
       hibernate.dialect: org.hibernate.dialect.OracleDialect
-#      hibernate.hbm2ddl.auto: none
-  #      hibernate.jdbc.batch_size: 20
-  #      hibernate.cache.use_query_cache: false
-  #      hibernate.cache.use_second_level_cache: false
-  #      hibernate.cache.use_structured_entries: false
-  #      hibernate.cache.use_minimal_puts: false
+      #      hibernate.hbm2ddl.auto: none
+      #      hibernate.jdbc.batch_size: 20
+      #      hibernate.cache.use_query_cache: false
+      #      hibernate.cache.use_second_level_cache: false
+      #      hibernate.cache.use_structured_entries: false
+      #      hibernate.cache.use_minimal_puts: false
 
-  ###    These settings will enable fulltext search with lucene or elastic
+      ###    These settings will enable fulltext search with lucene or elastic
       hibernate.search.enabled: false
   ### lucene parameters
 #      hibernate.search.backend.type: lucene
@@ -74,7 +74,7 @@ spring:
 #      hibernate.search.backend.directory.type: local-filesystem
 #      hibernate.search.backend.directory.root: target/lucenefiles
 #      hibernate.search.backend.lucene_version: lucene_current
-  ### elastic parameters ===> see also elasticsearch section below <===
+### elastic parameters ===> see also elasticsearch section below <===
 #      hibernate.search.backend.type: elasticsearch
 #      hibernate.search.backend.analysis.configurer: ca.uhn.fhir.jpa.search.HapiHSearchAnalysisConfigurers$HapiElasticAnalysisConfigurer
 hapi:
@@ -153,7 +153,7 @@ hapi:
     #    server_address: http://hapi.fhir.org/baseR4
     #    defer_indexing_for_codesystems_of_size: 101
     ### Flag is true by default. This flag filters resources during package installation, allowing only those resources with a valid status (e.g. active) to be installed.
-    #    validate_resource_status_for_package_upload: false 
+    #    validate_resource_status_for_package_upload: false
     #    install_transitive_ig_dependencies: true
     #implementationguides:
     ###    example from registry (packages.fhir.org)
@@ -182,7 +182,7 @@ hapi:
     #    auto_create_placeholder_reference_targets: false
     #    mass_ingestion_mode_enabled: false
     ### tells the server to automatically append the current version of the target resource to references at these paths
-    auto_version_reference_at_paths: 
+    auto_version_reference_at_paths:
       - AuditEvent.entity.what
       - AuditEvent.agent.who
       - AuditEvent.source.observer
@@ -238,18 +238,18 @@ hapi:
       - http://loinc.org/*
       - https://loinc.org/*
     partitioning:
-        allow_references_across_partitions: true
-        request_tenant_partitioning_mode: false
-        partitioning_include_in_search_hashes: false
-        database_partition_mode_enabled: true
-#        default_partition_id: 0
+      allow_references_across_partitions: true
+      request_tenant_partitioning_mode: false
+      partitioning_include_in_search_hashes: false
+      database_partition_mode_enabled: true
+    #        default_partition_id: 0
     #      conditional_create_duplicate_identifiers_enabled: false
     #      request_tenant_partitioning_mode: true
     cors:
       allow_Credentials: true
       # These are allowed_origin patterns, see: https://docs.spring.io/spring-framework/docs/current/javadoc-api/org/springframework/web/cors/CorsConfiguration.html#setAllowedOriginPatterns-java.util.List-
       allowed_origin:
-        - '*'
+        - "*"
 
     # Search coordinator thread pool sizes
     search-coord-core-pool-size: 20
@@ -269,19 +269,18 @@ hapi:
 
     # comma-separated package names, will be @ComponentScan'ed by Spring to allow for creating custom Spring beans
     #custom-bean-packages:
-    
-    # comma-separated list of fully qualified interceptor classes. 
-    # classes listed here will be fetched from the Spring context when combined with 'custom-bean-packages', 
-    # or will be instantiated via reflection using an no-arg contructor; then registered with the server  
-    #custom-interceptor-classes:  
-	custom-interceptor-classes: ca.uhn.fhir.jpa.starter.common.CustomHeaderBasedPartitionInterceptor  
 
+    # comma-separated list of fully qualified interceptor classes.
+    # classes listed here will be fetched from the Spring context when combined with 'custom-bean-packages',
+    # or will be instantiated via reflection using an no-arg contructor; then registered with the server
+    #custom-interceptor-classes:
+    custom-interceptor-classes: ca.uhn.fhir.jpa.starter.common.CustomHeaderBasedPartitionInterceptor
 
-    # comma-separated list of fully qualified provider classes. 
-    # classes listed here will be fetched from the Spring context when combined with 'custom-bean-packages', 
-    # or will be instantiated via reflection using an no-arg contructor; then registered with the server  
-    #custom-provider-classes:  
-    
+    # comma-separated list of fully qualified provider classes.
+    # classes listed here will be fetched from the Spring context when combined with 'custom-bean-packages',
+    # or will be instantiated via reflection using an no-arg contructor; then registered with the server
+    #custom-provider-classes:
+
     # Threadpool size for BATCH'ed GETs in a bundle.
     #    bundle_batch_pool_size: 10
     #    bundle_batch_pool_max_size: 50
@@ -302,7 +301,7 @@ hapi:
     tester:
       home:
         name: Local Tester
-        server_address: 'http://localhost:8080/fhir'
+        server_address: "http://localhost:8080/fhir"
         refuse_to_fetch_third_party_urls: false
         fhir_version: R4
       global:
