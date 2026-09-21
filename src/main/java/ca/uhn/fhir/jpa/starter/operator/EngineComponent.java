@@ -1002,6 +1002,12 @@ public class EngineComponent implements IResourceProvider {
             params.addInclude(new Include("Composition:author", true));
             params.addInclude(new Include("PractitionerRole:practitioner", true));
 
+            // Add include for Medication
+            params.addInclude(new Include("MedicationDispense:medication", false));
+            params.addInclude(new Include("MedicationRequest:medication", false));
+            params.addInclude(new Include("MedicationAdministration:medication", false));
+            params.addInclude(new Include("MedicationStatement:medication", false));
+
             // Set reasonable limit
             params.setCount(200);
 
