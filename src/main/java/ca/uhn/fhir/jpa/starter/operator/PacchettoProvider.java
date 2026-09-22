@@ -77,6 +77,14 @@ public class PacchettoProvider {
         String cfStr = codiceFiscale != null ? codiceFiscale.getValue() : null;
         String codeStr = code != null ? code.getValue() : null;
 
+        // Converte List<StringType> → List<String> (null-safe)
+        List<String> resourceTypesStr = (resourceTypes != null)
+                ? resourceTypes.stream()
+                        .filter(st -> st != null && st.getValue() != null)
+                        .map(StringType::getValue)
+                        .toList()
+                : null;
+
         return engineComponent.getBundle(
                 codeStr,
                 publisherStr,
@@ -85,6 +93,8 @@ public class PacchettoProvider {
                 dateFrom,
                 dateTo,
                 op,
+                resourceTypesStr,
+                mappaRisorseCodici,
                 requestDetails);
     }
 

@@ -122,7 +122,13 @@ public class EngineComponent implements IResourceProvider {
     public Bundle getBundle(String codeOperation,
             String publisher,
             String patientIdentifierValue,
-            String patientIdentifierSystem, DateType dateFrom, DateType dateTo, StringType op, RequestDetails theRequestDetails) {
+            String patientIdentifierSystem,
+            DateType dateFrom,
+            DateType dateTo,
+            StringType op,
+            List<String> resourceTypeInput,
+            Map<String, List<String>> resourceCodeInput,
+            RequestDetails theRequestDetails) {
 
         // ********************************
         // DATE RANGE
@@ -143,7 +149,7 @@ public class EngineComponent implements IResourceProvider {
             opDef = searchOperationDefinition(codeOperation, publisher);
         } else {
             String rawJson = op.getValue();
-            
+
             // LOG DI DEBUG: Controlliamo se la stringa è intera o troncata!
             log.info("Ricevuto JSON (lunghezza: {}): \n{}", rawJson.length(), rawJson);
 
@@ -156,17 +162,31 @@ public class EngineComponent implements IResourceProvider {
                         .parseResource(OperationDefinition.class, rawJson);
             } catch (Exception e) {
                 log.error("Errore durante il parsing. Il JSON potrebbe essere troncato.", e);
-                throw e; // o gestisci l'errore
+                throw e;
             }
         }
 
-        // 2. Estrai la lista di resourceType dal ValueSet contained "vs-resource-types"
-        List<String> resourceTypes = estraiCodesFromValueSetContained(opDef, RESOURCE_TYPES_VALUESET_ID);
-        log.info("ResourceType richiesti dall'OperationDefinition: {}", resourceTypes);
+        // 2. Estrai la lista di resourceType dal ValueSet contained "vs-resource-types".
+        //    Questa lista è sempre la sorgente autoritativa: definisce i tipi ammessi.
+        List<String> resourceTypesFromOpDef = estraiCodesFromValueSetContained(opDef, RESOURCE_TYPES_VALUESET_ID);
+        log.info("ResourceType richiesti dall'OperationDefinition: {}", resourceTypesFromOpDef);
 
-        if (resourceTypes.isEmpty()) {
+        if (resourceTypesFromOpDef.isEmpty()) {
             throw new ResourceNotFoundException(
                     "L'OperationDefinition non contiene un ValueSet '" + RESOURCE_TYPES_VALUESET_ID + "' valorizzato.");
+        }
+
+        // Se resourceTypeInput è valorizzato, viene usato come filtro: vengono mantenuti
+        // solo i tipi presenti nell'OperationDefinition (il client non può aggiungere tipi
+        // non previsti dall'OpDef). I tipi richiesti ma non presenti nell'OpDef vengono scartati.
+        List<String> resourceTypes;
+        if (resourceTypeInput != null && !resourceTypeInput.isEmpty()) {
+            resourceTypes = resourceTypesFromOpDef.stream()
+                    .filter(resourceTypeInput::contains)
+                    .toList();
+            log.info("ResourceType dopo intersezione con input {}: {}", resourceTypeInput, resourceTypes);
+        } else {
+            resourceTypes = resourceTypesFromOpDef;
         }
 
         // 3. Risolvi il Patient tramite identifier (CF dell'assistito)
@@ -177,33 +197,51 @@ public class EngineComponent implements IResourceProvider {
         // Use LinkedHashMap for automatic deduplication
         Map<String, Resource> collected = new LinkedHashMap<>();
 
-        // 4. Per ogni resourceType: cerca il ValueSet "<resourceType>-code"
-        // ed esegui la search filtrata per quei codici sul Patient.
+        // 4. Per ogni resourceType: se mappaRisorseCodici contiene codici espliciti per
+        //    quel tipo usali direttamente, altrimenti ricava i codici dal ValueSet dell'OperationDefinition.
         for (String resourceType : resourceTypes) {
-            String codeValueSetId = resourceType + CODE_VALUESET_SUFFIX;
-            List<Coding> codes = estraiCodingsFromValueSetContained(opDef, codeValueSetId);
+            List<String> codiciEspliciti = (resourceCodeInput != null)
+                    ? resourceCodeInput.get(resourceType)
+                    : null;
 
-            if (codes.isEmpty()) {
-                // Fallback: nessun ValueSet di codici → prendi l'ultima risorsa di
-                // quel tipo per il paziente
-                log.warn("Nessun ValueSet '{}' trovato nell'OperationDefinition. " +
-                        "Fallback: recupero ultima risorsa tipo={} per patientId={}",
-                        codeValueSetId, resourceType, patientId);
-                List<Resource> last = fetchLastResourceByPatient(resourceType, patientId, dateRange, theRequestDetails,
-                        collected);
-                if (last != null && !last.isEmpty()) {
-                    log.info("Found last resource for type {}", resourceType);
+            if (codiciEspliciti != null && !codiciEspliciti.isEmpty()) {
+                // Percorso: codici forniti esplicitamente dal chiamante via rawParameters
+                log.info("Codici espliciti per tipo={}: {}", resourceType, codiciEspliciti);
+                List<Coding> codes = codiciEspliciti.stream()
+                        .map(c -> new Coding().setCode(c))
+                        .toList();
+                List<Resource> resources = new ArrayList<>();
+                for (Coding code : codes) {
+                    resources.addAll(fetchResourcesByCodesAndPatient(resourceType, patientId, List.of(code),
+                            dateRange, theRequestDetails, collected));
                 }
-                continue;
-            }
+                log.info("Recuperate {} risorse di tipo {} per patientId={} (codici espliciti={})",
+                        resources.size(), resourceType, patientId, codes.size());
+            } else {
+                // Percorso originale: codici dal ValueSet "<resourceType>-code" dell'OperationDefinition
+                String codeValueSetId = resourceType + CODE_VALUESET_SUFFIX;
+                List<Coding> codes = estraiCodingsFromValueSetContained(opDef, codeValueSetId);
 
-            List<Resource> resources = new ArrayList<>();
-            for (Coding code : codes) {
-                resources.addAll(fetchResourcesByCodesAndPatient(resourceType, patientId, List.of(code), dateRange,
-                        theRequestDetails, collected));
+                if (codes.isEmpty()) {
+                    log.warn("Nessun ValueSet '{}' trovato nell'OperationDefinition. " +
+                            "Fallback: recupero ultima risorsa tipo={} per patientId={}",
+                            codeValueSetId, resourceType, patientId);
+                    List<Resource> last = fetchLastResourceByPatient(resourceType, patientId, dateRange,
+                            theRequestDetails, collected);
+                    if (last != null && !last.isEmpty()) {
+                        log.info("Found last resource for type {}", resourceType);
+                    }
+                    continue;
+                }
+
+                List<Resource> resources = new ArrayList<>();
+                for (Coding code : codes) {
+                    resources.addAll(fetchResourcesByCodesAndPatient(resourceType, patientId, List.of(code),
+                            dateRange, theRequestDetails, collected));
+                }
+                log.info("Recuperate {} risorse di tipo {} per patientId={} (codici filtrati={})",
+                        resources.size(), resourceType, patientId, codes.size());
             }
-            log.info("Recuperate {} risorse di tipo {} per patientId={} (codici filtrati={})",
-                    resources.size(), resourceType, patientId, codes.size());
         }
 
         // 5. Costruisci Bundle searchset
