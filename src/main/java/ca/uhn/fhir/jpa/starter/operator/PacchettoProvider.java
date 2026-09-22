@@ -34,7 +34,7 @@ public class PacchettoProvider {
             @OperationParam(name = "dateFrom", min = 0) DateType dateFrom,
             @OperationParam(name = "dateTo", min = 0) DateType dateTo,
             @OperationParam(name = "operationDefinition", min = 0) StringType op,
-            @OperationParam(name = "resource-type", min = 0, max = OperationParam.MAX_UNLIMITED) List<StringType> resourceTypes,
+            @OperationParam(name = "resourceType", min = 0, max = OperationParam.MAX_UNLIMITED) List<StringType> resourceTypes,
             @ResourceParam Parameters rawParameters,
             RequestDetails requestDetails) {
 
@@ -55,7 +55,7 @@ public class PacchettoProvider {
                     List<String> codiciAttuali = new ArrayList<>();
 
                     for (ParametersParameterComponent part : param.getPart()) {
-                        if ("resourceType".equals(part.getName()) && part.hasValue()) {
+                        if ("resource-type".equals(part.getName()) && part.hasValue()) {
                             resourceTypeAttuale = part.getValue().primitiveValue();
                         } else if ("code".equals(part.getName()) && part.hasValue()) {
                             codiciAttuali.add(part.getValue().primitiveValue());
