@@ -269,7 +269,7 @@ public class CustomHeaderBasedPartitionInterceptor {
 
         // Se la risorsa principale non è mappata (es. operazioni custom) cerca ovunque
         if (rootPartitionId == 0) {
-            return RequestPartitionId.allPartitions();
+            return RequestPartitionId.defaultPartition();
         }
 
         Set<Integer> partitionIds = new HashSet<>();
