@@ -140,6 +140,7 @@ public class DatiCliniciDisponibiliProvider {
         bundle.setType(Bundle.BundleType.SEARCHSET);
 
         Set<String> addedResourceKeys = new LinkedHashSet<>();
+        Set<String> addedCodeKeys = new LinkedHashSet<>();
 
         for (String rt : resourcesToSearch) {
             List<? extends Resource> primaryResources = searchResourceWithRevinclude(
@@ -151,7 +152,13 @@ public class DatiCliniciDisponibiliProvider {
                 if ("Composition".equals(resourceTypeName) || "DocumentReference".equals(resourceTypeName)) {
                     addToBundle(bundle, resource, Bundle.SearchEntryMode.INCLUDE, addedResourceKeys);
                 } else {
-                    Resource lightResource = toLightResource(resource);
+                    CodeableConcept codeConcept = extractCodeFromResource(resource);
+                    String codeKey = getCodeKey(resourceTypeName, codeConcept);
+                    if (codeKey != null && !addedCodeKeys.add(codeKey)) {
+                        continue;
+                    }
+
+                    Resource lightResource = toLightResource(resource, codeConcept);
                     addToBundle(bundle, lightResource, Bundle.SearchEntryMode.MATCH, addedResourceKeys);
                 }
             }
@@ -275,19 +282,38 @@ public class DatiCliniciDisponibiliProvider {
         return map;
     }
 
-    private Resource toLightResource(Resource resource) {
+    private Resource toLightResource(Resource resource, CodeableConcept codeConcept) {
         Resource lightResource = createLightResource(resource);
 
         if (lightResource != null && resource.hasIdElement()) {
             lightResource.setId(resource.getIdElement().toUnqualifiedVersionless());
         }
 
-        CodeableConcept codeConcept = extractCodeFromResource(resource);
         if (lightResource != null && codeConcept != null) {
             setCodeOnLightResource(lightResource, codeConcept);
         }
 
         return lightResource;
+    }
+
+    private String getCodeKey(String resourceTypeName, CodeableConcept codeConcept) {
+        if (codeConcept == null) {
+            return null;
+        }
+        if (codeConcept.hasCoding()) {
+            List<String> codings = codeConcept.getCoding().stream()
+                    .map(c -> (c.hasSystem() ? c.getSystem() : "") + "|" + (c.hasCode() ? c.getCode() : ""))
+                    .filter(s -> !s.equals("|"))
+                    .sorted()
+                    .toList();
+            if (!codings.isEmpty()) {
+                return resourceTypeName + ":" + String.join(",", codings);
+            }
+        }
+        if (codeConcept.hasText() && !codeConcept.getText().isBlank()) {
+            return resourceTypeName + ":text=" + codeConcept.getText().trim();
+        }
+        return null;
     }
 
     private Resource createLightResource(Resource resource) {
