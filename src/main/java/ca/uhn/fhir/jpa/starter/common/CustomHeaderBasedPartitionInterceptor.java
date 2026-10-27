@@ -292,6 +292,9 @@ public class CustomHeaderBasedPartitionInterceptor {
                 }
 
                 // Caso B: Reverse Chaining con _has (es. "_has:Observation:patient:code")
+                // Supporta anche la forma con sub-param di filtro referenziante un'altra
+                // risorsa (es. "_has:Composition:entry:encounter"), dove parts[3] è un
+                // search parameter di tipo reference su parts[1] (la risorsa referenziante).
                 else if (paramName.startsWith("_has:")) {
                     String[] parts = paramName.split(":");
                     if (parts.length > 1) {
@@ -300,6 +303,34 @@ public class CustomHeaderBasedPartitionInterceptor {
                             return RequestPartitionId.allPartitions();
                         }
                         partitionIds.add(targetPartitionId);
+
+                        // Se presente parts[3], è un search param su parts[1] che può
+                        // puntare a un'altra risorsa: ne risolviamo le partizioni target.
+                        // Esempio: "_has:Composition:entry:encounter"
+                        //   parts[1] = "Composition", parts[3] = "encounter"
+                        if (parts.length == 4) {
+                            String referenteType = parts[1];  // es. "Composition"
+                            String filterParam   = parts[3];  // es. "encounter"
+                            try {
+                                RuntimeResourceDefinition referenteDef =
+                                        fhirContext.getResourceDefinition(referenteType);
+                                RuntimeSearchParam sp = referenteDef.getSearchParam(filterParam);
+                                if (sp == null || sp.getTargets() == null || sp.getTargets().isEmpty()) {
+                                    // Parametro non risolvibile: cerca ovunque per sicurezza
+                                    return RequestPartitionId.allPartitions();
+                                }
+                                for (String spTarget : sp.getTargets()) {
+                                    int spTargetPartitionId = resolvePartitionId(spTarget);
+                                    if (spTargetPartitionId == 0) {
+                                        return RequestPartitionId.allPartitions();
+                                    }
+                                    partitionIds.add(spTargetPartitionId);
+                                }
+                            } catch (Exception e) {
+                                // Tipo non riconosciuto dal FhirContext: fallback sicuro
+                                return RequestPartitionId.allPartitions();
+                            }
+                        }
                     }
                 }
             }
