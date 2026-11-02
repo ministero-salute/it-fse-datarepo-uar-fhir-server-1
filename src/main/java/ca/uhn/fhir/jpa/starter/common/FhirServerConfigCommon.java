@@ -1,5 +1,21 @@
 package ca.uhn.fhir.jpa.starter.common;
 
+import static org.apache.commons.lang3.ObjectUtils.defaultIfNull;
+
+import java.util.HashSet;
+import java.util.stream.Collectors;
+
+import org.hl7.fhir.r4.model.Bundle.BundleType;
+import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.context.annotation.Primary;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.transaction.annotation.EnableTransactionManagement;
+
+import com.google.common.base.Strings;
+
 import ca.uhn.fhir.jpa.api.config.JpaStorageSettings;
 import ca.uhn.fhir.jpa.binary.api.IBinaryStorageSvc;
 import ca.uhn.fhir.jpa.binstore.DatabaseBinaryContentStorageSvcImpl;
@@ -12,22 +28,9 @@ import ca.uhn.fhir.jpa.starter.AppProperties;
 import ca.uhn.fhir.jpa.starter.util.JpaHibernatePropertiesProvider;
 import ca.uhn.fhir.jpa.subscription.match.deliver.email.EmailSenderImpl;
 import ca.uhn.fhir.jpa.subscription.match.deliver.email.IEmailSender;
+import ca.uhn.fhir.rest.api.SearchTotalModeEnum;
 import ca.uhn.fhir.rest.server.mail.MailConfig;
 import ca.uhn.fhir.rest.server.mail.MailSvc;
-import com.google.common.base.Strings;
-import org.hl7.fhir.r4.model.Bundle.BundleType;
-import org.springframework.boot.env.YamlPropertySourceLoader;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.context.annotation.Primary;
-import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
-
-import java.util.HashSet;
-import java.util.stream.Collectors;
-
-import static org.apache.commons.lang3.ObjectUtils.defaultIfNull;
 
 /**
  * This is the primary configuration file for the example server
@@ -155,6 +158,7 @@ public class FhirServerConfigCommon {
 		JpaStorageSettings jpaStorageSettings = new JpaStorageSettings();
 
 		jpaStorageSettings.setPreExpandValueSets(appProperties.getPre_expand_value_sets());
+        jpaStorageSettings.setDefaultTotalMode(SearchTotalModeEnum.ACCURATE);
 		jpaStorageSettings.setEnableTaskPreExpandValueSets(appProperties.getEnable_task_pre_expand_value_sets());
 		jpaStorageSettings.setPreExpandValueSetsMaxCount(appProperties.getPre_expand_value_sets_max_count());
 		jpaStorageSettings.setPreExpandValueSetsDefaultCount(appProperties.getPre_expand_value_sets_default_count());
