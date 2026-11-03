@@ -189,6 +189,12 @@ public class EngineComponent implements IResourceProvider {
             resourceTypes = resourceTypesFromOpDef;
         }
 
+        // I Patient non devono mai essere restituiti nel Bundle, anche se presenti
+        // nell'OperationDefinition o nell'input.
+        resourceTypes = resourceTypes.stream()
+                .filter(rt -> !"Patient".equals(rt))
+                .toList();
+
         // 3. Risolvi il Patient tramite identifier (CF dell'assistito)
         String patientId = findPatientIdByIdentifier(patientIdentifierSystem, patientIdentifierValue,
                 theRequestDetails);
@@ -244,8 +250,11 @@ public class EngineComponent implements IResourceProvider {
             }
         }
 
-        // 5. Costruisci Bundle searchset
-        return buildBundle(new ArrayList<>(collected.values()));
+        // 5. Costruisci Bundle searchset (escludendo eventuali Patient raccolti indirettamente)
+        List<Resource> bundleResources = collected.values().stream()
+                .filter(r -> r.getResourceType() != ResourceType.Patient)
+                .collect(Collectors.toList());
+        return buildBundle(bundleResources);
     }
 
     // =========================================================================
