@@ -2,9 +2,11 @@ package ca.uhn.fhir.jpa.starter.common;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -41,6 +43,7 @@ import ca.uhn.fhir.interceptor.api.Interceptor;
 import ca.uhn.fhir.interceptor.api.Pointcut;
 import ca.uhn.fhir.interceptor.model.ReadPartitionIdRequestDetails;
 import ca.uhn.fhir.interceptor.model.RequestPartitionId;
+import ca.uhn.fhir.jpa.dao.predicate.SearchFilterParser;
 import ca.uhn.fhir.jpa.entity.PartitionEntity;
 import ca.uhn.fhir.jpa.partition.IPartitionLookupSvc;
 import ca.uhn.fhir.rest.api.server.RequestDetails;
@@ -286,9 +289,28 @@ public class CustomHeaderBasedPartitionInterceptor {
                     return RequestPartitionId.allPartitions();
                 }
 
-                // Caso A: Chained Parameter (es. "subject:Patient.name" o "subject.name")
+                // Caso A: Chained Parameter (es. "subject:Patient.name" o "subject.name"),
+                // anche dentro _filter (es. _filter=medication.code eq X)
+                List<String> chainPaths = new ArrayList<>();
                 if (paramName.contains(".")) {
-                    Set<Integer> chainedPartitions = resolveChainedParameterPartitions(resourceName, paramName);
+                    chainPaths.add(paramName);
+                }
+                if ("_filter".equals(paramName)) {
+                    String[] filterValues = requestDetails.getParameters().get(paramName);
+                    if (filterValues != null) {
+                        for (String filterValue : filterValues) {
+                            List<String> filterChains = extractChainPathsFromFilter(filterValue);
+                            // Espressione _filter non interpretabile: fallback sicuro
+                            if (filterChains == null) {
+                                return RequestPartitionId.allPartitions();
+                            }
+                            chainPaths.addAll(filterChains);
+                        }
+                    }
+                }
+
+                for (String chainPath : chainPaths) {
+                    Set<Integer> chainedPartitions = resolveChainedParameterPartitions(resourceName, chainPath);
 
                     // Se un anello della catena non è risolvibile a una partizione specifica,
                     // fa fallback sicuro su tutte le partizioni
@@ -304,6 +326,38 @@ public class CustomHeaderBasedPartitionInterceptor {
         // partizioni
         // coinvolte (che HAPI traduce in SQL: WHERE PARTITION_ID IN (id1, id2, ...))
         return RequestPartitionId.fromPartitionIds(partitionIds);
+    }
+
+    /**
+     * Estrae i path con punto (chained parameter) da un'espressione _filter,
+     * es. {@code code eq X or medication.code eq X} -> {@code [medication.code]}.
+     * Restituisce null se l'espressione non è interpretabile.
+     */
+    private List<String> extractChainPathsFromFilter(String filterValue) {
+        List<String> paths = new ArrayList<>();
+        if (filterValue == null || filterValue.isEmpty()) {
+            return paths;
+        }
+        try {
+            collectChainPaths(SearchFilterParser.parse(filterValue), paths);
+        } catch (SearchFilterParser.FilterSyntaxException | RuntimeException e) {
+            return null;
+        }
+        return paths;
+    }
+
+    private void collectChainPaths(SearchFilterParser.BaseFilter filter, List<String> paths) {
+        if (filter instanceof SearchFilterParser.FilterLogical logical) {
+            collectChainPaths(logical.getFilter1(), paths);
+            collectChainPaths(logical.getFilter2(), paths);
+        } else if (filter instanceof SearchFilterParser.FilterParameterGroup group) {
+            collectChainPaths(group.getContained(), paths);
+        } else if (filter instanceof SearchFilterParser.FilterParameter parameter) {
+            SearchFilterParser.FilterParameterPath path = parameter.getParamPath();
+            if (path != null && path.getNext() != null) {
+                paths.add(path.toString());
+            }
+        }
     }
 
     /**
